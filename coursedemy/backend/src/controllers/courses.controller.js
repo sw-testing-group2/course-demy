@@ -142,7 +142,8 @@ function getCourseById(req, res) {
         cat.id   AS category_id,
         cat.name AS category_name,
         u.id        AS instructor_id,
-        u.full_name AS instructor_name
+        u.full_name AS instructor_name,
+        u.email     AS instructor_email
       FROM courses c
       LEFT JOIN categories cat ON c.category_id = cat.id
       LEFT JOIN users u        ON c.instructor_id = u.id
@@ -154,6 +155,19 @@ function getCourseById(req, res) {
         success: false,
         message: 'Không tìm thấy khóa học',
       });
+    }
+
+    // Chỉ cho xem khóa học đã được duyệt (ngoại trừ admin và giảng viên sở hữu)
+    if (row.status !== 'approved') {
+      const user = req.user; // có thể undefined nếu chưa đăng nhập
+      const isAdmin      = user && user.role === 'admin';
+      const isOwner      = user && user.role === 'instructor' && user.id === row.instructor_id;
+      if (!isAdmin && !isOwner) {
+        return res.status(404).json({
+          success: false,
+          message: 'Không tìm thấy khóa học',
+        });
+      }
     }
 
     const course = {
@@ -171,6 +185,7 @@ function getCourseById(req, res) {
       instructor: {
         id:        row.instructor_id,
         full_name: row.instructor_name,
+        email:     row.instructor_email,
       },
     };
 

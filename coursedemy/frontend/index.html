@@ -81,7 +81,7 @@ async function loadCourses(page = 1) {
     return;
   }
 
-  container.innerHTML = `<div class="courses-grid">${courses.map(courseCard).join('')}</div>
+  container.innerHTML = `<div class="courses-grid">${courses.map(c => courseCard(c)).join('')}</div>
     <p style="color:var(--text-dim);font-size:.85rem;margin-top:12px">Tìm thấy <strong>${total}</strong> khóa học</p>`;
   renderPagination();
 }

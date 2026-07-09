@@ -3,7 +3,95 @@
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Giỏ hàng – CourseDemy</title>
+  <meta name="description" content="Xem và quản lý giỏ hàng khóa học của bạn tại CourseDemy.">
   <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* ── Styles bổ sung cho trang giỏ hàng ── */
+    .cart-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 20px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-2);
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+    .cart-header-row h3 {
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--text-dim);
+    }
+    .cart-item {
+      transition: background var(--transition);
+    }
+    .cart-item:hover {
+      background: var(--bg-hover);
+    }
+    .cart-item-title a {
+      color: var(--text);
+      font-weight: 600;
+    }
+    .cart-item-title a:hover {
+      color: var(--primary);
+    }
+    .cart-item-instructor {
+      font-size: 0.82rem;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+    .remove-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      padding: 6px 10px;
+      border-radius: var(--radius-sm);
+      font-size: 1rem;
+      transition: all var(--transition);
+      flex-shrink: 0;
+    }
+    .remove-btn:hover {
+      border-color: var(--danger);
+      color: var(--danger);
+      background: var(--danger-bg);
+    }
+    .summary-card {
+      position: sticky;
+      top: 84px;
+    }
+    .summary-heading {
+      font-size: 1.1rem;
+      font-weight: 700;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .checkout-note {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-align: center;
+      margin-top: 10px;
+    }
+    .cart-count-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--primary-glow);
+      color: var(--primary);
+      border-radius: 100px;
+      min-width: 24px;
+      height: 24px;
+      font-size: 0.8rem;
+      font-weight: 700;
+      padding: 0 8px;
+    }
+    /* Xóa item animation */
+    .cart-item.removing {
+      opacity: 0;
+      transform: translateX(20px);
+      transition: all 0.3s ease;
+    }
+  </style>
 </head>
 <body>
 <nav id="navbar"></nav>
@@ -13,9 +101,11 @@
 <main class="container section">
   <div class="page-header">
     <h1 class="page-title">🛒 Giỏ hàng</h1>
+    <p class="page-subtitle">Xem và quản lý các khóa học bạn muốn mua</p>
   </div>
 
-  <div class="cart-layout" id="cart-layout">
+  <div id="cart-layout">
+    <!-- Nội dung sẽ được render bằng JS -->
     <div class="empty-state"><div class="spinner-ring"></div></div>
   </div>
 </main>
@@ -23,8 +113,17 @@
 <script src="js/api.js"></script>
 <script>
 renderNavbar('cart');
+
+// Yêu cầu đăng nhập
 if (!requireAuth('/login.html')) throw 0;
-if (getUser()?.role !== 'student') window.location.href = '/index.html';
+
+// Chỉ student mới được xem giỏ hàng
+const currentUser = getUser();
+if (!currentUser || currentUser.role !== 'student') {
+  showToast('Chỉ học viên mới có giỏ hàng', 'error');
+  setTimeout(() => window.location.href = '/index.html', 1500);
+  throw 0;
+}
 
 let cartItems = [];
 
@@ -33,61 +132,115 @@ async function loadCart() {
   const { ok, data } = await apiFetch('/cart');
   hideSpinner();
 
-  if (!ok) { showToast('Không thể tải giỏ hàng', 'error'); return; }
-  cartItems = data.data;
-
-  const layout = document.getElementById('cart-layout');
-  if (!cartItems.length) {
-    layout.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
-      <div class="empty-icon">🛒</div>
-      <p class="empty-text">Giỏ hàng trống. Hãy khám phá các khóa học!</p>
-      <a href="/index.html" class="btn btn-primary mt-16">Khám phá khóa học</a>
-    </div>`;
+  if (!ok) {
+    showToast('Không thể tải giỏ hàng', 'error');
+    document.getElementById('cart-layout').innerHTML = `
+      <div class="empty-state" style="grid-column:1/-1">
+        <div class="empty-icon">❌</div>
+        <p class="empty-text">Không thể tải giỏ hàng. Vui lòng thử lại.</p>
+        <button class="btn btn-outline mt-16" onclick="loadCart()">↻ Thử lại</button>
+      </div>`;
     return;
   }
 
-  const total = cartItems.reduce((s,i) => s + i.course.price, 0);
+  cartItems = data.data;
+  renderCart();
+}
+
+function renderCart() {
+  const layout = document.getElementById('cart-layout');
+
+  if (!cartItems.length) {
+    layout.innerHTML = `
+      <div class="empty-state" style="grid-column:1/-1">
+        <div class="empty-icon">🛒</div>
+        <p class="empty-text">Giỏ hàng của bạn đang trống.</p>
+        <a href="/index.html" class="btn btn-primary mt-16">🔍 Khám phá khóa học</a>
+      </div>`;
+    return;
+  }
+
+  const total = cartItems.reduce((sum, item) => sum + item.course.price, 0);
+  const count = cartItems.length;
 
   const itemsHtml = cartItems.map(item => {
     const thumb = item.course.thumbnail
       ? `<img src="${item.course.thumbnail}" class="cart-thumb" alt="${item.course.title}">`
       : `<div class="cart-thumb-ph">📚</div>`;
+
     return `
-      <div class="cart-item" id="item-${item.course.id}">
-        ${thumb}
-        <div class="cart-info">
-          <h3><a href="/course.html?id=${item.course.id}">${item.course.title}</a></h3>
-          <p>👤 ${item.course.instructor?.full_name || '—'}</p>
+      <div class="cart-item" id="cart-item-${item.course.id}">
+        <a href="/course.html?id=${item.course.id}" class="card-thumb-wrap" style="width:96px;height:64px;flex-shrink:0;display:block;overflow:hidden;border-radius:var(--radius-sm)">
+          ${thumb}
+        </a>
+        <div class="cart-info" style="flex:1;min-width:0">
+          <div class="cart-item-title">
+            <a href="/course.html?id=${item.course.id}">${item.course.title}</a>
+          </div>
+          <div class="cart-item-instructor">👤 ${item.course.instructor?.full_name || '—'}</div>
         </div>
-        <span class="cart-item-price">${formatPriceText(item.course.price)}</span>
-        <button class="btn btn-sm btn-outline-danger" onclick="removeItem(${item.course.id})">🗑 Xóa</button>
+        <span class="cart-item-price">${item.course.price === 0 ? '<span class="badge badge-success">Miễn phí</span>' : item.course.price.toLocaleString('vi-VN') + '₫'}</span>
+        <button class="remove-btn" onclick="removeItem(${item.course.id}, this)" title="Xóa khỏi giỏ hàng">🗑</button>
       </div>`;
   }).join('');
 
   layout.innerHTML = `
-    <div class="card" style="padding:0;overflow:hidden">
-      <div style="padding:16px 20px;border-bottom:1px solid var(--border);font-weight:600">${cartItems.length} khóa học</div>
+    <div class="cart-list-wrap" style="background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
+      <div class="cart-header-row">
+        <h3>Khóa học trong giỏ</h3>
+        <span class="cart-count-badge">${count} khóa học</span>
+      </div>
       ${itemsHtml}
     </div>
+
     <div class="summary-card">
-      <h3 style="font-weight:700;margin-bottom:16px">Tóm tắt đơn hàng</h3>
-      <div class="summary-row"><span>Số khóa học</span><span>${cartItems.length}</span></div>
-      <div class="summary-row summary-total"><span>Tổng cộng</span><span style="color:var(--primary)">${formatPriceText(total)}</span></div>
+      <div class="summary-heading">📋 Tóm tắt đơn hàng</div>
+      <div class="summary-row">
+        <span>Số khóa học</span>
+        <span id="summary-count">${count}</span>
+      </div>
+      <div class="summary-row">
+        <span>Tổng tiền (tạm tính)</span>
+        <span id="summary-subtotal">${total.toLocaleString('vi-VN')}₫</span>
+      </div>
+      <div class="summary-row summary-total">
+        <span>Tổng cộng</span>
+        <span id="summary-total" style="color:var(--primary)">${total === 0 ? 'Miễn phí' : total.toLocaleString('vi-VN') + '₫'}</span>
+      </div>
       <a href="/checkout.html" class="btn btn-primary btn-full btn-lg" style="margin-top:16px">💳 Thanh toán ngay</a>
-      <a href="/index.html" class="btn btn-ghost btn-full" style="margin-top:8px">Tiếp tục mua</a>
+      <a href="/index.html" class="btn btn-ghost btn-full" style="margin-top:8px">← Tiếp tục mua sắm</a>
+      <p class="checkout-note">🔒 Thanh toán an toàn, dữ liệu được bảo mật</p>
     </div>`;
 }
 
-async function removeItem(courseId) {
-  if (!confirm('Xóa khóa học này khỏi giỏ hàng?')) return;
+async function removeItem(courseId, btn) {
+  if (!confirm('Bạn có chắc muốn xóa khóa học này khỏi giỏ hàng?')) return;
+
+  // Animation xóa
+  const itemEl = document.getElementById(`cart-item-${courseId}`);
+  if (itemEl) itemEl.classList.add('removing');
+
+  btn.disabled = true;
+
   showSpinner();
   const { ok, data } = await apiFetch(`/cart/${courseId}`, { method: 'DELETE' });
   hideSpinner();
-  if (!ok) { showToast(data.message, 'error'); return; }
+
+  if (!ok) {
+    showToast(data.message || 'Không thể xóa khóa học', 'error');
+    if (itemEl) itemEl.classList.remove('removing');
+    btn.disabled = false;
+    return;
+  }
+
   showToast('Đã xóa khỏi giỏ hàng', 'success');
-  loadCart();
+
+  // Cập nhật state local và re-render (không cần gọi lại API)
+  cartItems = cartItems.filter(item => item.course.id !== courseId);
+  renderCart();
 }
 
+// Khởi động
 loadCart();
 </script>
 </body>
