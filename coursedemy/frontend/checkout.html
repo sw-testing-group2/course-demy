@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Thanh toán – CourseDemy</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav id="navbar"></nav>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<main class="container section">
+  <div class="page-header">
+    <h1 class="page-title">💳 Xác nhận thanh toán</h1>
+    <p class="page-subtitle">Kiểm tra lại đơn hàng trước khi thanh toán</p>
+  </div>
+  <div id="checkout-content"><div class="empty-state"><div class="spinner-ring"></div></div></div>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+renderNavbar();
+if (!requireAuth('/login.html')) throw 0;
+if (getUser()?.role !== 'student') window.location.href = '/index.html';
+
+async function loadCheckout() {
+  showSpinner();
+  const { ok, data } = await apiFetch('/cart');
+  hideSpinner();
+  const el = document.getElementById('checkout-content');
+
+  if (!ok || !data.data.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">🛒</div>
+      <p class="empty-text">Giỏ hàng trống!</p>
+      <a href="/index.html" class="btn btn-primary mt-16">Khám phá khóa học</a>
+    </div>`;
+    return;
+  }
+
+  const items = data.data;
+  const total = items.reduce((s,i) => s + i.course.price, 0);
+
+  el.innerHTML = `
+    <div class="cart-layout">
+      <div class="card" style="padding:0;overflow:hidden">
+        <div style="padding:16px 20px;border-bottom:1px solid var(--border);font-weight:700">📋 Đơn hàng của bạn</div>
+        ${items.map(item => {
+          const thumb = item.course.thumbnail
+            ? `<img src="${item.course.thumbnail}" class="cart-thumb" alt="">`
+            : `<div class="cart-thumb-ph">📚</div>`;
+          return `<div class="cart-item">
+            ${thumb}
+            <div class="cart-info">
+              <h3>${item.course.title}</h3>
+              <p>👤 ${item.course.instructor?.full_name || '—'}</p>
+            </div>
+            <span class="cart-item-price">${formatPriceText(item.course.price)}</span>
+          </div>`;
+        }).join('')}
+      </div>
+
+      <div>
+        <div class="summary-card">
+          <h3 style="font-weight:700;margin-bottom:16px">Tóm tắt</h3>
+          <div class="summary-row"><span>Số khóa học</span><span>${items.length}</span></div>
+          <div class="summary-row summary-total">
+            <span>Tổng thanh toán</span>
+            <span style="color:var(--primary);font-size:1.4rem">${formatPriceText(total)}</span>
+          </div>
+          <div style="background:var(--success-bg);border:1px solid var(--success);border-radius:8px;padding:12px;margin:16px 0;font-size:.85rem;color:var(--success)">
+            🔒 Thanh toán an toàn & bảo mật
+          </div>
+          <button class="btn btn-success btn-full btn-lg" onclick="doCheckout()">✅ Xác nhận thanh toán</button>
+          <a href="/cart.html" class="btn btn-ghost btn-full" style="margin-top:8px">← Quay lại giỏ hàng</a>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function doCheckout() {
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = 'Đang xử lý...';
+  showSpinner();
+  const { ok, data } = await apiFetch('/orders/checkout', { method: 'POST' });
+  hideSpinner();
+  if (!ok) { showToast(data.message, 'error'); btn.disabled = false; btn.textContent = '✅ Xác nhận thanh toán'; return; }
+  showToast('Thanh toán thành công! 🎉', 'success');
+  setTimeout(() => window.location.href = '/my-courses.html', 1000);
+}
+
+loadCheckout();
+</script>
+</body>
+</html>

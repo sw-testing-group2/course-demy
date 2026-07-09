@@ -1,0 +1,3 @@
+# Middlewares
+# Thư mục này sẽ chứa các middleware của ứng dụng (auth, validation, upload, ...)
+# Sẽ được implement ở task sau.

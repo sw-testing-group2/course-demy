@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Duyệt khóa học – Admin CourseDemy</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav id="navbar"></nav>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<main class="container section">
+  <div class="section-header">
+    <div>
+      <h1 class="page-title">📋 Duyệt khóa học</h1>
+      <p class="page-subtitle" id="subtitle">Đang tải...</p>
+    </div>
+    <a href="/admin.html" class="btn btn-outline">← Dashboard</a>
+  </div>
+  <div id="content"><div class="empty-state"><div class="spinner-ring"></div></div></div>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+renderNavbar('admin');
+if (!requireAuth('/login.html')) throw 0;
+if (!requireRole('admin', '/index.html')) throw 0;
+
+async function loadPending() {
+  showSpinner();
+  const { ok, data } = await apiFetch('/admin/courses/pending');
+  hideSpinner();
+  const el = document.getElementById('content');
+  if (!ok) { el.innerHTML = `<p style="color:var(--danger)">${data.message}</p>`; return; }
+
+  const courses = data.data;
+  document.getElementById('subtitle').textContent = `${courses.length} khóa học đang chờ duyệt`;
+
+  if (!courses.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">✅</div>
+      <p class="empty-text">Không có khóa học nào đang chờ duyệt!</p>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = `<div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th>Tiêu đề</th><th>Giảng viên</th><th>Danh mục</th><th>Giá</th><th>Ngày tạo</th><th>Thao tác</th>
+      </tr></thead>
+      <tbody>
+        ${courses.map(c => `<tr id="row-${c.id}">
+          <td>
+            <a href="/course.html?id=${c.id}" target="_blank" style="font-weight:600">${c.title}</a>
+          </td>
+          <td>
+            <div>${c.instructor.full_name}</div>
+            <div style="font-size:.78rem;color:var(--text-dim)">${c.instructor.email}</div>
+          </td>
+          <td>${c.category?.name ? `<span class="badge badge-outline">${c.category.name}</span>` : '—'}</td>
+          <td>${formatPriceText(c.price)}</td>
+          <td style="font-size:.82rem;color:var(--text-dim)">${formatDate(c.created_at)}</td>
+          <td>
+            <div class="td-actions">
+              <button class="btn btn-sm btn-success" onclick="approve(${c.id})">✅ Duyệt</button>
+              <button class="btn btn-sm btn-outline-danger" onclick="reject(${c.id})">❌ Từ chối</button>
+            </div>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+async function approve(id) {
+  if (!confirm('Phê duyệt khóa học này?')) return;
+  showSpinner();
+  const { ok, data } = await apiFetch(`/admin/courses/${id}/approve`, { method: 'PUT' });
+  hideSpinner();
+  if (!ok) { showToast(data.message, 'error'); return; }
+  showToast('✅ Đã phê duyệt khóa học', 'success');
+  document.getElementById(`row-${id}`)?.remove();
+  const tbody = document.querySelector('tbody');
+  if (tbody && !tbody.children.length) loadPending();
+}
+
+async function reject(id) {
+  if (!confirm('Từ chối khóa học này? Giảng viên sẽ cần chỉnh sửa và gửi lại.')) return;
+  showSpinner();
+  const { ok, data } = await apiFetch(`/admin/courses/${id}/reject`, { method: 'PUT', body: JSON.stringify({}) });
+  hideSpinner();
+  if (!ok) { showToast(data.message, 'error'); return; }
+  showToast('Đã từ chối khóa học', 'info');
+  document.getElementById(`row-${id}`)?.remove();
+  const tbody = document.querySelector('tbody');
+  if (tbody && !tbody.children.length) loadPending();
+}
+
+loadPending();
+</script>
+</body>
+</html>

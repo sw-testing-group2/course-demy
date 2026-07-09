@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Hồ sơ – CourseDemy</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav id="navbar"></nav>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<main class="container section" style="max-width:600px">
+  <div class="page-header">
+    <h1 class="page-title">👤 Hồ sơ cá nhân</h1>
+  </div>
+
+  <div class="card" id="profile-card">
+    <div class="empty-state"><div class="spinner-ring"></div></div>
+  </div>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+renderNavbar();
+if (!requireAuth('/login.html')) throw 0;
+
+async function loadProfile() {
+  showSpinner();
+  const { ok, data } = await apiFetch('/auth/me');
+  hideSpinner();
+  if (!ok) { showToast(data.message, 'error'); return; }
+  const u = data.data;
+
+  document.getElementById('profile-card').innerHTML = `
+    <div style="display:flex;align-items:center;gap:20px;margin-bottom:28px">
+      <div style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--primary-dark),#a78bfa);display:flex;align-items:center;justify-content:center;font-size:2rem;font-weight:800;color:#fff;flex-shrink:0">
+        ${u.full_name.charAt(0).toUpperCase()}
+      </div>
+      <div>
+        <h2 style="font-size:1.2rem;font-weight:700">${u.full_name}</h2>
+        <p style="color:var(--text-dim);font-size:.88rem">${u.email}</p>
+        <div style="margin-top:4px;display:flex;gap:6px">${statusBadge(u.role)} ${statusBadge(u.status)}</div>
+      </div>
+    </div>
+
+    <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;margin-bottom:24px;font-size:.88rem;color:var(--text-dim)">
+      📅 Tham gia từ: ${formatDate(u.created_at)}
+    </div>
+
+    <hr class="divider">
+    <h3 style="font-weight:700;margin-bottom:20px">Cập nhật thông tin</h3>
+
+    <form id="profile-form">
+      <div class="form-group">
+        <label>Họ và tên</label>
+        <input id="full_name" type="text" class="form-control" value="${u.full_name}" required>
+      </div>
+      <div class="form-group">
+        <label>Email</label>
+        <input type="text" class="form-control" value="${u.email}" disabled style="opacity:.6;cursor:not-allowed">
+        <p class="form-hint">Email không thể thay đổi</p>
+      </div>
+      <button type="submit" class="btn btn-primary">💾 Lưu thay đổi</button>
+    </form>`;
+
+  document.getElementById('profile-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = e.target.querySelector('button');
+    btn.disabled = true; btn.textContent = 'Đang lưu...';
+    showSpinner();
+
+    const { ok, data } = await apiFetch('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify({ full_name: document.getElementById('full_name').value.trim() })
+    });
+
+    hideSpinner(); btn.disabled = false; btn.textContent = '💾 Lưu thay đổi';
+    if (!ok) { showToast(data.message, 'error'); return; }
+
+    // Cập nhật user trong localStorage
+    const stored = getUser();
+    setAuth(getToken(), { ...stored, full_name: data.data.full_name });
+    showToast('Cập nhật thành công!', 'success');
+    renderNavbar();
+  });
+}
+
+loadProfile();
+</script>
+</body>
+</html>

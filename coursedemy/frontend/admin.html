@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Admin Dashboard – CourseDemy</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav id="navbar"></nav>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<main class="container section">
+  <div class="page-header">
+    <h1 class="page-title">⚙️ Admin Dashboard</h1>
+    <p class="page-subtitle">Quản lý toàn bộ hệ thống CourseDemy</p>
+  </div>
+
+  <div class="stats-grid" id="stats">
+    <div class="stat-card"><div class="stat-icon">⏳</div><div class="stat-value" id="stat-pending">—</div><div class="stat-label">Khóa học chờ duyệt</div></div>
+    <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-value" id="stat-users">—</div><div class="stat-label">Tổng người dùng</div></div>
+    <div class="stat-card"><div class="stat-icon">📚</div><div class="stat-value" id="stat-courses">—</div><div class="stat-label">Tổng khóa học</div></div>
+    <div class="stat-card"><div class="stat-icon">📂</div><div class="stat-value" id="stat-cats">—</div><div class="stat-label">Danh mục</div></div>
+  </div>
+
+  <h2 class="section-title" style="margin-bottom:16px">Quản lý</h2>
+  <div class="admin-links">
+    <a href="/admin-courses.html" class="admin-link-card">
+      <span class="admin-link-icon">📋</span>
+      <div><div>Duyệt khóa học</div><div style="font-size:.8rem;font-weight:400;color:var(--text-dim);margin-top:2px">Xem và phê duyệt khóa học mới</div></div>
+    </a>
+    <a href="/admin-users.html" class="admin-link-card">
+      <span class="admin-link-icon">👥</span>
+      <div><div>Quản lý người dùng</div><div style="font-size:.8rem;font-weight:400;color:var(--text-dim);margin-top:2px">Khóa/mở khóa tài khoản</div></div>
+    </a>
+    <a href="/admin-categories.html" class="admin-link-card">
+      <span class="admin-link-icon">📂</span>
+      <div><div>Quản lý danh mục</div><div style="font-size:.8rem;font-weight:400;color:var(--text-dim);margin-top:2px">Thêm, sửa, xóa danh mục</div></div>
+    </a>
+  </div>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+renderNavbar('admin');
+if (!requireAuth('/login.html')) throw 0;
+if (!requireRole('admin', '/index.html')) throw 0;
+
+(async () => {
+  showSpinner();
+  const [pendingRes, usersRes, coursesRes, catsRes] = await Promise.all([
+    apiFetch('/admin/courses/pending'),
+    apiFetch('/admin/users'),
+    apiFetch('/courses?limit=1'),
+    apiFetch('/categories'),
+  ]);
+  hideSpinner();
+
+  if (pendingRes.ok) document.getElementById('stat-pending').textContent = pendingRes.data.data.length;
+  if (usersRes.ok)   document.getElementById('stat-users').textContent   = usersRes.data.data.length;
+  if (coursesRes.ok) document.getElementById('stat-courses').textContent = coursesRes.data.data.total;
+  if (catsRes.ok)    document.getElementById('stat-cats').textContent    = catsRes.data.data.length;
+
+  // Highlight pending badge if > 0
+  if (pendingRes.ok && pendingRes.data.data.length > 0) {
+    document.getElementById('stat-pending').style.color = 'var(--warning)';
+  }
+})();
+</script>
+</body>
+</html>

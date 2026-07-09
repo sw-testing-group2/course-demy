@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>CourseDemy – Học trực tuyến không giới hạn</title>
+  <meta name="description" content="Nền tảng học trực tuyến hàng đầu với hàng nghìn khóa học chất lượng cao">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav id="navbar"></nav>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<section class="hero-section">
+  <div class="container">
+    <h1 class="hero-title">Học bất cứ điều gì, <span>bất cứ lúc nào</span></h1>
+    <p class="hero-sub">Hàng trăm khóa học chất lượng từ các giảng viên hàng đầu, học theo tốc độ của bạn.</p>
+  </div>
+</section>
+
+<main class="container section">
+  <div class="filter-bar">
+    <div class="search-wrap">
+      <span class="search-icon">🔍</span>
+      <input id="search-input" type="text" class="form-control" placeholder="Tìm kiếm khóa học...">
+    </div>
+    <select id="category-filter" class="form-control filter-select">
+      <option value="">Tất cả danh mục</option>
+    </select>
+    <div style="display:flex;gap:8px;align-items:center">
+      <label style="font-size:.85rem;color:var(--text-dim);white-space:nowrap">Giá tối đa:</label>
+      <input id="max-price" type="number" class="form-control" style="width:140px" placeholder="Không giới hạn">
+    </div>
+    <button class="btn btn-primary" onclick="search()">Tìm kiếm</button>
+    <button class="btn btn-outline" onclick="resetFilters()">Xóa lọc</button>
+  </div>
+
+  <div id="courses-container">
+    <div class="empty-state"><div class="spinner-ring"></div></div>
+  </div>
+
+  <div class="pagination" id="pagination"></div>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+let currentPage = 1, totalPages = 1;
+
+renderNavbar();
+loadCategories();
+loadCourses();
+
+async function loadCategories() {
+  const { ok, data } = await apiFetch('/categories');
+  if (!ok) return;
+  const sel = document.getElementById('category-filter');
+  data.data.forEach(c => sel.innerHTML += `<option value="${c.id}">${c.name}</option>`);
+}
+
+async function loadCourses(page = 1) {
+  showSpinner();
+  const search    = document.getElementById('search-input').value.trim();
+  const catId     = document.getElementById('category-filter').value;
+  const maxPrice  = document.getElementById('max-price').value;
+  let qs = `?page=${page}&limit=9`;
+  if (search)   qs += `&search=${encodeURIComponent(search)}`;
+  if (catId)    qs += `&category_id=${catId}`;
+  if (maxPrice) qs += `&maxPrice=${maxPrice}`;
+
+  const { ok, data } = await apiFetch(`/courses${qs}`);
+  hideSpinner();
+  const container = document.getElementById('courses-container');
+  if (!ok) { container.innerHTML = `<div class="empty-state"><p class="empty-text">Không thể tải khóa học</p></div>`; return; }
+
+  const { courses, total, totalPages: tp } = data.data;
+  totalPages = tp; currentPage = page;
+
+  if (!courses.length) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">🔍</div><p class="empty-text">Không tìm thấy khóa học phù hợp</p></div>`;
+    document.getElementById('pagination').innerHTML = '';
+    return;
+  }
+
+  container.innerHTML = `<div class="courses-grid">${courses.map(courseCard).join('')}</div>
+    <p style="color:var(--text-dim);font-size:.85rem;margin-top:12px">Tìm thấy <strong>${total}</strong> khóa học</p>`;
+  renderPagination();
+}
+
+function renderPagination() {
+  const el = document.getElementById('pagination');
+  if (totalPages <= 1) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <button class="btn btn-outline btn-sm" onclick="loadCourses(${currentPage-1})" ${currentPage===1?'disabled':''}>← Trước</button>
+    <span class="page-info">Trang ${currentPage} / ${totalPages}</span>
+    <button class="btn btn-outline btn-sm" onclick="loadCourses(${currentPage+1})" ${currentPage===totalPages?'disabled':''}>Sau →</button>`;
+}
+
+function search() { loadCourses(1); }
+function resetFilters() {
+  document.getElementById('search-input').value = '';
+  document.getElementById('category-filter').value = '';
+  document.getElementById('max-price').value = '';
+  loadCourses(1);
+}
+document.getElementById('search-input').addEventListener('keydown', e => { if (e.key==='Enter') search(); });
+</script>
+</body>
+</html>

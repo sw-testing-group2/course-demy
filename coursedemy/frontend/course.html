@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Chi tiết khóa học – CourseDemy</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav id="navbar"></nav>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<main class="container section" id="content">
+  <div class="empty-state"><div class="spinner-ring"></div></div>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+renderNavbar();
+const id = new URLSearchParams(location.search).get('id');
+if (!id) window.location.href = '/index.html';
+
+(async () => {
+  showSpinner();
+  const { ok, data } = await apiFetch(`/courses/${id}`);
+  hideSpinner();
+
+  if (!ok) {
+    document.getElementById('content').innerHTML =
+      `<div class="empty-state"><div class="empty-icon">😕</div><p class="empty-text">${data.message || 'Không tìm thấy khóa học'}</p><a href="/index.html" class="btn btn-primary mt-16">Về trang chủ</a></div>`;
+    return;
+  }
+
+  const c = data.data;
+  const user = getUser();
+  let actionHtml = '';
+
+  if (!isLoggedIn()) {
+    actionHtml = `<a href="/login.html" class="btn btn-primary btn-full btn-lg">🔐 Đăng nhập để mua</a>`;
+  } else if (user.role === 'student') {
+    // Kiểm tra đã enroll chưa
+    const enrollRes = await apiFetch('/enrollments');
+    const enrolled = enrollRes.ok && enrollRes.data.data.some(e => e.course.id == id);
+    if (enrolled) {
+      actionHtml = `<div class="enrolled-banner">✅ Bạn đã sở hữu khóa học này</div>`;
+    } else if (c.price === 0) {
+      actionHtml = `<button class="btn btn-success btn-full btn-lg" onclick="addToCart()">🎁 Lấy miễn phí</button>`;
+    } else {
+      actionHtml = `<button class="btn btn-primary btn-full btn-lg" onclick="addToCart()">🛒 Thêm vào giỏ hàng</button>`;
+    }
+  }
+
+  const thumb = c.thumbnail
+    ? `<img src="${c.thumbnail}" alt="${c.title}" class="course-hero-img">`
+    : `<div class="course-hero-placeholder">📚</div>`;
+
+  document.title = `${c.title} – CourseDemy`;
+  document.getElementById('content').innerHTML = `
+    <a href="/index.html" style="color:var(--text-dim);font-size:.88rem">← Quay lại danh sách</a>
+    <div class="course-detail mt-24">
+      <div>
+        ${thumb}
+        <h1 style="font-size:1.8rem;font-weight:800;margin-top:20px;line-height:1.3">${c.title}</h1>
+        <div style="display:flex;gap:10px;margin:12px 0;flex-wrap:wrap;align-items:center">
+          ${c.category ? `<span class="badge badge-outline">📂 ${c.category.name}</span>` : ''}
+          ${statusBadge(c.status)}
+        </div>
+        <div class="course-meta">
+          <div class="meta-item">👤 <strong>Giảng viên:</strong> ${c.instructor?.full_name || '—'}</div>
+          <div class="meta-item">📅 <strong>Ngày tạo:</strong> ${formatDate(c.created_at)}</div>
+        </div>
+        ${c.description ? `
+          <h2 style="font-size:1.1rem;font-weight:700;margin:20px 0 10px">Mô tả khóa học</h2>
+          <p style="color:var(--text-dim);line-height:1.8">${c.description}</p>` : ''}
+      </div>
+
+      <div class="course-sticky-card">
+        <div class="card">
+          <div class="course-price-big">${formatPriceText(c.price)}</div>
+          <div style="margin-bottom:16px">${actionHtml}</div>
+          <hr class="divider">
+          <div class="course-meta">
+            <div class="meta-item">👤 ${c.instructor?.full_name || '—'}</div>
+            ${c.category ? `<div class="meta-item">📂 ${c.category.name}</div>` : ''}
+            <div class="meta-item">📅 ${formatDate(c.created_at)}</div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+})();
+
+async function addToCart() {
+  const btn = event.target;
+  btn.disabled = true;
+  const { ok, data } = await apiFetch('/cart', { method: 'POST', body: JSON.stringify({ course_id: parseInt(id) }) });
+  btn.disabled = false;
+  if (!ok) { showToast(data.message, 'error'); return; }
+  showToast(data.message, 'success');
+  btn.textContent = '✅ Đã thêm vào giỏ';
+  setTimeout(() => btn.textContent = '🛒 Thêm vào giỏ hàng', 2000);
+}
+</script>
+</body>
+</html>

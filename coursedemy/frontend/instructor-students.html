@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Học viên – CourseDemy</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav id="navbar"></nav>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<main class="container section">
+  <div class="page-header">
+    <h1 class="page-title" id="page-title">👥 Danh sách học viên</h1>
+    <a href="/instructor.html" class="btn btn-outline">← Quay lại</a>
+  </div>
+  <div id="content"><div class="empty-state"><div class="spinner-ring"></div></div></div>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+renderNavbar('instructor');
+if (!requireAuth('/login.html')) throw 0;
+if (!requireRole('instructor', '/index.html')) throw 0;
+
+const courseId = new URLSearchParams(location.search).get('courseId');
+if (!courseId) window.location.href = '/instructor.html';
+
+(async () => {
+  showSpinner();
+  // Load course info
+  const courseRes = await apiFetch(`/courses/${courseId}`);
+  if (courseRes.ok) {
+    document.getElementById('page-title').textContent = `👥 Học viên: ${courseRes.data.data.title}`;
+    document.title = `Học viên – ${courseRes.data.data.title}`;
+  }
+
+  const { ok, data } = await apiFetch(`/instructor/courses/${courseId}/students`);
+  hideSpinner();
+  const el = document.getElementById('content');
+
+  if (!ok) { el.innerHTML = `<div class="empty-state"><p style="color:var(--danger)">${data.message}</p></div>`; return; }
+  const students = data.data;
+
+  if (!students.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">👥</div>
+      <p class="empty-text">Chưa có học viên nào đăng ký khóa học này</p>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = `
+    <p style="color:var(--text-dim);margin-bottom:16px;font-size:.9rem">${students.length} học viên đã đăng ký</p>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>#</th><th>Họ và tên</th><th>Email</th><th>Ngày đăng ký</th></tr></thead>
+        <tbody>
+          ${students.map((s, i) => `<tr>
+            <td style="color:var(--text-dim)">${i+1}</td>
+            <td><strong>${s.full_name}</strong></td>
+            <td style="color:var(--text-dim)">${s.email}</td>
+            <td style="color:var(--text-dim);font-size:.85rem">${formatDate(s.enrolled_at)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+})();
+</script>
+</body>
+</html>

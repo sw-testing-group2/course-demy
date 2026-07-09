@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Đăng ký – CourseDemy</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="auth-page">
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<div class="auth-card">
+  <div class="auth-logo">🎓</div>
+  <h1 class="auth-title">Tạo tài khoản</h1>
+  <p class="auth-subtitle">Bắt đầu hành trình học tập của bạn</p>
+
+  <form id="register-form">
+    <div class="form-group">
+      <label>Họ và tên</label>
+      <input id="full_name" type="text" class="form-control" placeholder="Nguyễn Văn A" required>
+    </div>
+    <div class="form-group">
+      <label>Email</label>
+      <input id="email" type="email" class="form-control" placeholder="email@example.com" required>
+    </div>
+    <div class="form-group">
+      <label>Mật khẩu</label>
+      <input id="password" type="password" class="form-control" placeholder="Tối thiểu 6 ký tự" required>
+    </div>
+    <div class="form-group">
+      <label>Bạn muốn</label>
+      <div class="radio-group">
+        <label class="radio-label">
+          <input type="radio" name="role" value="student" checked> 🎓 Học viên
+        </label>
+        <label class="radio-label">
+          <input type="radio" name="role" value="instructor"> 📖 Giảng viên
+        </label>
+      </div>
+    </div>
+    <button type="submit" class="btn btn-primary btn-full btn-lg">Đăng ký</button>
+  </form>
+
+  <p class="auth-footer">Đã có tài khoản? <a href="/login.html">Đăng nhập</a></p>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+if (isLoggedIn()) window.location.href = '/index.html';
+
+document.getElementById('register-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = e.target.querySelector('button[type=submit]');
+  btn.disabled = true; btn.textContent = 'Đang đăng ký...';
+  showSpinner();
+
+  const role = document.querySelector('input[name="role"]:checked').value;
+  const { ok, data } = await apiFetch('/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({
+      full_name: document.getElementById('full_name').value.trim(),
+      email:     document.getElementById('email').value.trim(),
+      password:  document.getElementById('password').value,
+      role,
+    })
+  });
+
+  hideSpinner(); btn.disabled = false; btn.textContent = 'Đăng ký';
+
+  if (!ok) { showToast(data.message || 'Đăng ký thất bại', 'error'); return; }
+
+  showToast('Đăng ký thành công! Đang chuyển đến trang đăng nhập...', 'success');
+  setTimeout(() => window.location.href = '/login.html', 1200);
+});
+</script>
+</body>
+</html>

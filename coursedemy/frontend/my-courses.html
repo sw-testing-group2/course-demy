@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Khóa học của tôi – CourseDemy</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav id="navbar"></nav>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<main class="container section">
+  <div class="page-header">
+    <h1 class="page-title">📚 Khóa học của tôi</h1>
+    <p class="page-subtitle">Các khóa học bạn đã đăng ký</p>
+  </div>
+  <div id="content"><div class="empty-state"><div class="spinner-ring"></div></div></div>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+renderNavbar('my-courses');
+if (!requireAuth('/login.html')) throw 0;
+if (getUser()?.role !== 'student') window.location.href = '/index.html';
+
+(async () => {
+  showSpinner();
+  const { ok, data } = await apiFetch('/enrollments');
+  hideSpinner();
+  const el = document.getElementById('content');
+
+  if (!ok) { el.innerHTML = `<p style="color:var(--danger)">${data.message}</p>`; return; }
+  const items = data.data;
+
+  if (!items.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">📚</div>
+      <p class="empty-text">Bạn chưa có khóa học nào. Hãy khám phá!</p>
+      <a href="/index.html" class="btn btn-primary mt-16">Khám phá khóa học</a>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = `<div class="courses-grid">
+    ${items.map(item => {
+      const c = item.course;
+      const thumb = c.thumbnail
+        ? `<img src="${c.thumbnail}" alt="${c.title}" class="card-thumb">`
+        : `<div class="card-thumb-placeholder"><span>📚</span></div>`;
+      return `<div class="course-card">
+        <div class="card-thumb-wrap">${thumb}</div>
+        <div class="card-body">
+          <h3 class="card-title">${c.title}</h3>
+          <p class="card-instructor">👤 ${c.instructor?.full_name || '—'}</p>
+          <div class="enrolled-banner" style="font-size:.8rem;padding:8px 12px">
+            ✅ Đã đăng ký ${formatDate(item.enrolled_at)}
+          </div>
+        </div>
+      </div>`;
+    }).join('')}
+  </div>
+  <p style="margin-top:16px;color:var(--text-dim);font-size:.85rem">${items.length} khóa học đã đăng ký</p>`;
+})();
+</script>
+</body>
+</html>

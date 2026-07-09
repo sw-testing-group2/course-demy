@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Giỏ hàng – CourseDemy</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav id="navbar"></nav>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<main class="container section">
+  <div class="page-header">
+    <h1 class="page-title">🛒 Giỏ hàng</h1>
+  </div>
+
+  <div class="cart-layout" id="cart-layout">
+    <div class="empty-state"><div class="spinner-ring"></div></div>
+  </div>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+renderNavbar('cart');
+if (!requireAuth('/login.html')) throw 0;
+if (getUser()?.role !== 'student') window.location.href = '/index.html';
+
+let cartItems = [];
+
+async function loadCart() {
+  showSpinner();
+  const { ok, data } = await apiFetch('/cart');
+  hideSpinner();
+
+  if (!ok) { showToast('Không thể tải giỏ hàng', 'error'); return; }
+  cartItems = data.data;
+
+  const layout = document.getElementById('cart-layout');
+  if (!cartItems.length) {
+    layout.innerHTML = `<div class="empty-state" style="grid-column:1/-1">
+      <div class="empty-icon">🛒</div>
+      <p class="empty-text">Giỏ hàng trống. Hãy khám phá các khóa học!</p>
+      <a href="/index.html" class="btn btn-primary mt-16">Khám phá khóa học</a>
+    </div>`;
+    return;
+  }
+
+  const total = cartItems.reduce((s,i) => s + i.course.price, 0);
+
+  const itemsHtml = cartItems.map(item => {
+    const thumb = item.course.thumbnail
+      ? `<img src="${item.course.thumbnail}" class="cart-thumb" alt="${item.course.title}">`
+      : `<div class="cart-thumb-ph">📚</div>`;
+    return `
+      <div class="cart-item" id="item-${item.course.id}">
+        ${thumb}
+        <div class="cart-info">
+          <h3><a href="/course.html?id=${item.course.id}">${item.course.title}</a></h3>
+          <p>👤 ${item.course.instructor?.full_name || '—'}</p>
+        </div>
+        <span class="cart-item-price">${formatPriceText(item.course.price)}</span>
+        <button class="btn btn-sm btn-outline-danger" onclick="removeItem(${item.course.id})">🗑 Xóa</button>
+      </div>`;
+  }).join('');
+
+  layout.innerHTML = `
+    <div class="card" style="padding:0;overflow:hidden">
+      <div style="padding:16px 20px;border-bottom:1px solid var(--border);font-weight:600">${cartItems.length} khóa học</div>
+      ${itemsHtml}
+    </div>
+    <div class="summary-card">
+      <h3 style="font-weight:700;margin-bottom:16px">Tóm tắt đơn hàng</h3>
+      <div class="summary-row"><span>Số khóa học</span><span>${cartItems.length}</span></div>
+      <div class="summary-row summary-total"><span>Tổng cộng</span><span style="color:var(--primary)">${formatPriceText(total)}</span></div>
+      <a href="/checkout.html" class="btn btn-primary btn-full btn-lg" style="margin-top:16px">💳 Thanh toán ngay</a>
+      <a href="/index.html" class="btn btn-ghost btn-full" style="margin-top:8px">Tiếp tục mua</a>
+    </div>`;
+}
+
+async function removeItem(courseId) {
+  if (!confirm('Xóa khóa học này khỏi giỏ hàng?')) return;
+  showSpinner();
+  const { ok, data } = await apiFetch(`/cart/${courseId}`, { method: 'DELETE' });
+  hideSpinner();
+  if (!ok) { showToast(data.message, 'error'); return; }
+  showToast('Đã xóa khỏi giỏ hàng', 'success');
+  loadCart();
+}
+
+loadCart();
+</script>
+</body>
+</html>

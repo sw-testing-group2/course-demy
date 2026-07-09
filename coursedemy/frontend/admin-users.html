@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Quản lý người dùng – Admin CourseDemy</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav id="navbar"></nav>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<main class="container section">
+  <div class="section-header">
+    <div>
+      <h1 class="page-title">👥 Quản lý người dùng</h1>
+      <p class="page-subtitle" id="subtitle">Đang tải...</p>
+    </div>
+    <a href="/admin.html" class="btn btn-outline">← Dashboard</a>
+  </div>
+
+  <div class="filter-bar">
+    <select id="role-filter" class="form-control" style="max-width:180px">
+      <option value="">Tất cả vai trò</option>
+      <option value="student">Học viên</option>
+      <option value="instructor">Giảng viên</option>
+      <option value="admin">Admin</option>
+    </select>
+    <select id="status-filter" class="form-control" style="max-width:180px">
+      <option value="">Tất cả trạng thái</option>
+      <option value="active">Hoạt động</option>
+      <option value="locked">Đã khóa</option>
+    </select>
+    <button class="btn btn-primary" onclick="loadUsers()">Lọc</button>
+    <button class="btn btn-outline" onclick="resetFilters()">Xóa lọc</button>
+  </div>
+
+  <div id="content"><div class="empty-state"><div class="spinner-ring"></div></div></div>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+renderNavbar('admin');
+if (!requireAuth('/login.html')) throw 0;
+if (!requireRole('admin', '/index.html')) throw 0;
+
+const currentAdmin = getUser();
+
+async function loadUsers() {
+  showSpinner();
+  const role   = document.getElementById('role-filter').value;
+  const status = document.getElementById('status-filter').value;
+  let qs = '?';
+  if (role)   qs += `role=${role}&`;
+  if (status) qs += `status=${status}&`;
+
+  const { ok, data } = await apiFetch(`/admin/users${qs}`);
+  hideSpinner();
+  const el = document.getElementById('content');
+  if (!ok) { el.innerHTML = `<p style="color:var(--danger)">${data.message}</p>`; return; }
+
+  const users = data.data;
+  document.getElementById('subtitle').textContent = `${users.length} người dùng`;
+
+  if (!users.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">👥</div><p class="empty-text">Không tìm thấy người dùng</p></div>`;
+    return;
+  }
+
+  el.innerHTML = `<div class="table-wrap">
+    <table>
+      <thead><tr><th>Họ và tên</th><th>Email</th><th>Vai trò</th><th>Trạng thái</th><th>Ngày tạo</th><th>Thao tác</th></tr></thead>
+      <tbody>
+        ${users.map(u => {
+          const isAdmin = u.role === 'admin';
+          const isSelf  = u.id === currentAdmin.id;
+          return `<tr id="user-row-${u.id}">
+            <td><strong>${u.full_name}</strong>${isSelf ? ' <span class="badge badge-info" style="font-size:.7rem">Bạn</span>' : ''}</td>
+            <td style="color:var(--text-dim)">${u.email}</td>
+            <td>${statusBadge(u.role)}</td>
+            <td>${statusBadge(u.status)}</td>
+            <td style="font-size:.82rem;color:var(--text-dim)">${formatDate(u.created_at)}</td>
+            <td>
+              ${!isAdmin && !isSelf ? `
+                <button class="btn btn-sm ${u.status==='active'?'btn-outline-danger':'btn-success'}"
+                  onclick="toggleLock(${u.id},'${u.status}')">
+                  ${u.status==='active' ? '🔒 Khóa' : '🔓 Mở khóa'}
+                </button>` : `<span style="color:var(--text-muted);font-size:.82rem">—</span>`}
+            </td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+async function toggleLock(id, currentStatus) {
+  const action = currentStatus === 'active' ? 'Khóa' : 'Mở khóa';
+  if (!confirm(`${action} tài khoản này?`)) return;
+  showSpinner();
+  const { ok, data } = await apiFetch(`/admin/users/${id}/lock`, { method: 'PUT' });
+  hideSpinner();
+  if (!ok) { showToast(data.message, 'error'); return; }
+  showToast(data.message, 'success');
+  loadUsers();
+}
+
+function resetFilters() {
+  document.getElementById('role-filter').value = '';
+  document.getElementById('status-filter').value = '';
+  loadUsers();
+}
+
+loadUsers();
+</script>
+</body>
+</html>

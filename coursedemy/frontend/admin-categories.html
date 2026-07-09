@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Quản lý danh mục – Admin CourseDemy</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav id="navbar"></nav>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<!-- Modal -->
+<div class="modal-overlay hidden" id="modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2 class="modal-title" id="modal-title">Thêm danh mục</h2>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <form id="cat-form">
+      <input type="hidden" id="edit-id">
+      <div class="form-group">
+        <label>Tên danh mục *</label>
+        <input id="cat-name" type="text" class="form-control" placeholder="VD: Lập trình" required>
+      </div>
+      <div class="form-group">
+        <label>Mô tả</label>
+        <textarea id="cat-desc" class="form-control" placeholder="Mô tả ngắn về danh mục" style="min-height:80px"></textarea>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button type="button" class="btn btn-outline" onclick="closeModal()">Hủy</button>
+        <button type="submit" class="btn btn-primary" id="modal-submit-btn">Lưu</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<main class="container section">
+  <div class="section-header">
+    <div>
+      <h1 class="page-title">📂 Quản lý danh mục</h1>
+      <p class="page-subtitle" id="subtitle">Đang tải...</p>
+    </div>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-primary" onclick="openCreate()">+ Thêm danh mục</button>
+      <a href="/admin.html" class="btn btn-outline">← Dashboard</a>
+    </div>
+  </div>
+  <div id="content"><div class="empty-state"><div class="spinner-ring"></div></div></div>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+renderNavbar('admin');
+if (!requireAuth('/login.html')) throw 0;
+if (!requireRole('admin', '/index.html')) throw 0;
+
+async function loadCategories() {
+  showSpinner();
+  const { ok, data } = await apiFetch('/categories');
+  hideSpinner();
+  const el = document.getElementById('content');
+  if (!ok) { el.innerHTML = `<p style="color:var(--danger)">${data.message}</p>`; return; }
+
+  const cats = data.data;
+  document.getElementById('subtitle').textContent = `${cats.length} danh mục`;
+
+  if (!cats.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">📂</div><p class="empty-text">Chưa có danh mục nào</p></div>`;
+    return;
+  }
+
+  el.innerHTML = `<div class="table-wrap">
+    <table>
+      <thead><tr><th>#</th><th>Tên danh mục</th><th>Mô tả</th><th>Thao tác</th></tr></thead>
+      <tbody>
+        ${cats.map((c,i) => `<tr id="cat-row-${c.id}">
+          <td style="color:var(--text-dim)">${i+1}</td>
+          <td><strong>${c.name}</strong></td>
+          <td style="color:var(--text-dim);font-size:.88rem">${c.description || '—'}</td>
+          <td>
+            <div class="td-actions">
+              <button class="btn btn-sm btn-outline" onclick='openEdit(${JSON.stringify(c)})'>✏️ Sửa</button>
+              <button class="btn btn-sm btn-outline-danger" onclick="deleteCategory(${c.id},'${c.name}')">🗑 Xóa</button>
+            </div>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+// ── Modal helpers ──────────────────────────────────────────────────────────────
+function openCreate() {
+  document.getElementById('modal-title').textContent = '+ Thêm danh mục mới';
+  document.getElementById('modal-submit-btn').textContent = 'Tạo danh mục';
+  document.getElementById('edit-id').value = '';
+  document.getElementById('cat-name').value = '';
+  document.getElementById('cat-desc').value = '';
+  document.getElementById('modal').classList.remove('hidden');
+  document.getElementById('cat-name').focus();
+}
+function openEdit(cat) {
+  document.getElementById('modal-title').textContent = '✏️ Sửa danh mục';
+  document.getElementById('modal-submit-btn').textContent = 'Cập nhật';
+  document.getElementById('edit-id').value   = cat.id;
+  document.getElementById('cat-name').value  = cat.name;
+  document.getElementById('cat-desc').value  = cat.description || '';
+  document.getElementById('modal').classList.remove('hidden');
+  document.getElementById('cat-name').focus();
+}
+function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+document.getElementById('modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+
+// ── Form submit ────────────────────────────────────────────────────────────────
+document.getElementById('cat-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = document.getElementById('modal-submit-btn');
+  btn.disabled = true;
+  showSpinner();
+
+  const editId = document.getElementById('edit-id').value;
+  const payload = {
+    name:        document.getElementById('cat-name').value.trim(),
+    description: document.getElementById('cat-desc').value.trim() || undefined,
+  };
+
+  const isEdit = !!editId;
+  const { ok, data } = await apiFetch(
+    isEdit ? `/admin/categories/${editId}` : '/admin/categories',
+    { method: isEdit ? 'PUT' : 'POST', body: JSON.stringify(payload) }
+  );
+
+  hideSpinner(); btn.disabled = false;
+
+  if (!ok) { showToast(data.message, 'error'); return; }
+  showToast(isEdit ? 'Cập nhật thành công!' : 'Tạo danh mục thành công!', 'success');
+  closeModal();
+  loadCategories();
+});
+
+// ── Delete ─────────────────────────────────────────────────────────────────────
+async function deleteCategory(id, name) {
+  if (!confirm(`Xóa danh mục "${name}"? Không thể xóa nếu có khóa học thuộc danh mục này.`)) return;
+  showSpinner();
+  const { ok, data } = await apiFetch(`/admin/categories/${id}`, { method: 'DELETE' });
+  hideSpinner();
+  if (!ok) { showToast(data.message, 'error'); return; }
+  showToast('Đã xóa danh mục', 'success');
+  document.getElementById(`cat-row-${id}`)?.remove();
+}
+
+loadCategories();
+</script>
+</body>
+</html>

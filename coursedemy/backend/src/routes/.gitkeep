@@ -1,0 +1,3 @@
+# Routes
+# Thư mục này sẽ chứa các route của ứng dụng (auth, users, courses, orders, ...)
+# Sẽ được implement ở task sau.

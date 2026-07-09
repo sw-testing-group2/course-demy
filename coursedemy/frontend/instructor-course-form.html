@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Khóa học – CourseDemy</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav id="navbar"></nav>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<main class="container section" style="max-width:680px">
+  <div class="page-header">
+    <h1 class="page-title" id="form-title">+ Tạo khóa học mới</h1>
+    <p class="page-subtitle">Khóa học sẽ cần được Admin duyệt trước khi hiển thị</p>
+  </div>
+
+  <div class="card">
+    <form id="course-form">
+      <div class="form-group">
+        <label>Tiêu đề khóa học *</label>
+        <input id="title" type="text" class="form-control" placeholder="VD: Lập trình Python từ A-Z" required>
+      </div>
+      <div class="form-group">
+        <label>Mô tả</label>
+        <textarea id="description" class="form-control" placeholder="Mô tả nội dung, đối tượng học viên..."></textarea>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-group">
+          <label>Giá (VNĐ)</label>
+          <input id="price" type="number" class="form-control" placeholder="0 = Miễn phí" min="0" value="0">
+        </div>
+        <div class="form-group">
+          <label>Danh mục</label>
+          <select id="category_id" class="form-control">
+            <option value="">-- Chọn danh mục --</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>URL Thumbnail</label>
+        <input id="thumbnail" type="text" class="form-control" placeholder="https://example.com/image.jpg">
+        <p class="form-hint">Đường dẫn URL ảnh bìa khóa học</p>
+      </div>
+
+      <div style="display:flex;gap:12px;margin-top:8px">
+        <button type="submit" class="btn btn-primary btn-lg" id="submit-btn">💾 Lưu khóa học</button>
+        <a href="/instructor.html" class="btn btn-outline btn-lg">Hủy</a>
+      </div>
+    </form>
+  </div>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+renderNavbar('instructor');
+if (!requireAuth('/login.html')) throw 0;
+if (!requireRole('instructor', '/index.html')) throw 0;
+
+const courseId = new URLSearchParams(location.search).get('id');
+const isEdit = !!courseId;
+
+async function init() {
+  // Load categories
+  const catRes = await apiFetch('/categories');
+  if (catRes.ok) {
+    const sel = document.getElementById('category_id');
+    catRes.data.data.forEach(c => sel.innerHTML += `<option value="${c.id}">${c.name}</option>`);
+  }
+
+  if (isEdit) {
+    document.getElementById('form-title').textContent = '✏️ Chỉnh sửa khóa học';
+    document.getElementById('submit-btn').textContent = '💾 Cập nhật';
+    showSpinner();
+    const { ok, data } = await apiFetch(`/courses/${courseId}`);
+    hideSpinner();
+    if (!ok) { showToast('Không thể tải khóa học', 'error'); return; }
+    const c = data.data;
+    document.title = `Sửa: ${c.title} – CourseDemy`;
+    document.getElementById('title').value       = c.title || '';
+    document.getElementById('description').value = c.description || '';
+    document.getElementById('price').value       = c.price ?? 0;
+    document.getElementById('thumbnail').value   = c.thumbnail || '';
+    if (c.category?.id) document.getElementById('category_id').value = c.category.id;
+  }
+}
+
+document.getElementById('course-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true; btn.textContent = 'Đang lưu...';
+  showSpinner();
+
+  const payload = {
+    title:       document.getElementById('title').value.trim(),
+    description: document.getElementById('description').value.trim() || undefined,
+    price:       parseFloat(document.getElementById('price').value) || 0,
+    thumbnail:   document.getElementById('thumbnail').value.trim() || undefined,
+  };
+  const catVal = document.getElementById('category_id').value;
+  if (catVal) payload.category_id = parseInt(catVal);
+
+  const endpoint = isEdit ? `/instructor/courses/${courseId}` : '/instructor/courses';
+  const method   = isEdit ? 'PUT' : 'POST';
+  const { ok, data } = await apiFetch(endpoint, { method, body: JSON.stringify(payload) });
+
+  hideSpinner(); btn.disabled = false;
+  btn.textContent = isEdit ? '💾 Cập nhật' : '💾 Lưu khóa học';
+
+  if (!ok) { showToast(data.message, 'error'); return; }
+  showToast(isEdit ? 'Cập nhật thành công!' : 'Tạo thành công! Đang chờ Admin duyệt.', 'success');
+  setTimeout(() => window.location.href = '/instructor.html', 1000);
+});
+
+init();
+</script>
+</body>
+</html>

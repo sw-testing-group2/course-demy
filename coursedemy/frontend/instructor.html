@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Giảng dạy – CourseDemy</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav id="navbar"></nav>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<main class="container section">
+  <div class="section-header">
+    <div>
+      <h1 class="page-title">🎓 Quản lý khóa học</h1>
+      <p class="page-subtitle" id="subtitle">Đang tải...</p>
+    </div>
+    <a href="/instructor-course-form.html" class="btn btn-primary">+ Tạo khóa học mới</a>
+  </div>
+
+  <div id="content"><div class="empty-state"><div class="spinner-ring"></div></div></div>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+renderNavbar('instructor');
+if (!requireAuth('/login.html')) throw 0;
+if (!requireRole('instructor', '/index.html')) throw 0;
+
+async function loadCourses() {
+  showSpinner();
+  const { ok, data } = await apiFetch('/instructor/courses');
+  hideSpinner();
+  const el = document.getElementById('content');
+
+  if (!ok) { el.innerHTML = `<p style="color:var(--danger)">${data.message}</p>`; return; }
+  const courses = data.data;
+  document.getElementById('subtitle').textContent = `${courses.length} khóa học`;
+
+  if (!courses.length) {
+    el.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">📖</div>
+      <p class="empty-text">Bạn chưa có khóa học nào.</p>
+      <a href="/instructor-course-form.html" class="btn btn-primary mt-16">+ Tạo khóa học đầu tiên</a>
+    </div>`;
+    return;
+  }
+
+  el.innerHTML = `<div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th>Khóa học</th><th>Danh mục</th><th>Giá</th><th>Trạng thái</th><th>Ngày tạo</th><th>Thao tác</th>
+      </tr></thead>
+      <tbody>
+        ${courses.map(c => `<tr>
+          <td><strong>${c.title}</strong></td>
+          <td>${c.category?.name ? `<span class="badge badge-outline">${c.category.name}</span>` : '—'}</td>
+          <td>${formatPriceText(c.price)}</td>
+          <td>${statusBadge(c.status)}</td>
+          <td style="color:var(--text-dim);font-size:.85rem">${formatDate(c.created_at)}</td>
+          <td>
+            <div class="td-actions">
+              <a href="/instructor-course-form.html?id=${c.id}" class="btn btn-sm btn-outline">✏️ Sửa</a>
+              <a href="/instructor-students.html?courseId=${c.id}" class="btn btn-sm btn-ghost">👥 Học viên</a>
+              <button class="btn btn-sm btn-outline-danger" onclick="deleteCourse(${c.id},'${c.title}')">🗑</button>
+            </div>
+          </td>
+        </tr>`).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+async function deleteCourse(id, title) {
+  if (!confirm(`Xóa khóa học "${title}"? Hành động này không thể hoàn tác.`)) return;
+  showSpinner();
+  const { ok, data } = await apiFetch(`/instructor/courses/${id}`, { method: 'DELETE' });
+  hideSpinner();
+  if (!ok) { showToast(data.message, 'error'); return; }
+  showToast('Đã xóa khóa học', 'success');
+  loadCourses();
+}
+
+loadCourses();
+</script>
+</body>
+</html>
