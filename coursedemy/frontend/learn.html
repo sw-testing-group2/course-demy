@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Học tập – CourseDemy</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* ── Learn layout ── */
+    .learn-layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 0;
+      min-height: calc(100vh - 64px);
+    }
+
+    /* ── Sidebar ── */
+    .learn-sidebar {
+      background: var(--bg-2);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      position: sticky;
+      top: 64px;
+      max-height: calc(100vh - 64px);
+    }
+    .sidebar-header {
+      padding: 20px 18px 16px;
+      border-bottom: 1px solid var(--border);
+      position: sticky;
+      top: 0;
+      background: var(--bg-2);
+      z-index: 10;
+    }
+    .sidebar-course-title {
+      font-size: .95rem;
+      font-weight: 700;
+      line-height: 1.4;
+      margin-bottom: 12px;
+    }
+    /* Progress bar */
+    .progress-wrap { margin-bottom: 4px; }
+    .progress-bar-track {
+      height: 6px;
+      background: var(--border);
+      border-radius: 100px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary-dark), #a78bfa);
+      border-radius: 100px;
+      transition: width .5s ease;
+    }
+    .progress-label {
+      font-size: .75rem;
+      color: var(--text-dim);
+      margin-top: 4px;
+    }
+
+    /* Section / lesson list */
+    .sb-section { border-bottom: 1px solid var(--border); }
+    .sb-section-title {
+      padding: 12px 18px 10px;
+      font-size: .78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: var(--text-dim);
+    }
+    .sb-lesson {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 9px 18px;
+      cursor: pointer;
+      transition: background var(--transition);
+      font-size: .87rem;
+    }
+    .sb-lesson:hover { background: var(--bg-hover); }
+    .sb-lesson.active { background: var(--primary-glow); color: var(--primary); }
+    .sb-lesson.active .sb-lesson-title { color: var(--primary); font-weight: 600; }
+    .sb-lesson-icon { font-size: .95rem; flex-shrink: 0; }
+    .sb-lesson-title { flex: 1; line-height: 1.3; }
+    .sb-lesson-check { flex-shrink: 0; color: var(--success); font-size: .9rem; }
+    .sb-lesson-lock { flex-shrink: 0; color: var(--text-muted); font-size: .85rem; }
+
+    /* ── Content area ── */
+    .learn-content { padding: 32px 40px; }
+    .lesson-title-big { font-size: 1.4rem; font-weight: 800; margin-bottom: 20px; }
+    .lesson-video-wrap {
+      width: 100%;
+      aspect-ratio: 16/9;
+      background: #000;
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+    .lesson-video-wrap video,
+    .lesson-video-wrap iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+    .lesson-body {
+      line-height: 1.8;
+      color: var(--text);
+      font-size: .95rem;
+      margin-bottom: 20px;
+    }
+    .lesson-body pre {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 14px;
+      overflow-x: auto;
+      font-size: .85rem;
+      margin: 12px 0;
+    }
+    .quiz-question {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 16px 18px;
+      margin-bottom: 14px;
+    }
+    .quiz-q-text { font-weight: 600; margin-bottom: 12px; }
+    .quiz-options { display: flex; flex-direction: column; gap: 8px; }
+    .quiz-opt-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all var(--transition);
+      font-size: .9rem;
+    }
+    .quiz-opt-label:hover { border-color: var(--primary); background: var(--primary-glow); }
+    .quiz-opt-label input { accent-color: var(--primary); }
+    .quiz-opt-label.correct { border-color: var(--success); background: var(--success-bg); color: var(--success); }
+    .quiz-opt-label.wrong   { border-color: var(--danger);  background: var(--danger-bg);  }
+    .quiz-result-box {
+      padding: 16px 20px;
+      border-radius: var(--radius-sm);
+      margin: 20px 0;
+      font-weight: 600;
+    }
+    .quiz-result-box.passed { background: var(--success-bg); border: 1px solid var(--success); color: var(--success); }
+    .quiz-result-box.failed { background: var(--danger-bg);  border: 1px solid var(--danger);  color: var(--danger); }
+    .locked-box {
+      text-align: center;
+      padding: 60px 24px;
+    }
+    .locked-icon { font-size: 3.5rem; margin-bottom: 12px; }
+    .not-enrolled-banner {
+      background: var(--warning-bg);
+      border: 1px solid var(--warning);
+      border-radius: var(--radius-sm);
+      padding: 12px 18px;
+      color: var(--warning);
+      font-size: .9rem;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    @media (max-width: 768px) {
+      .learn-layout { grid-template-columns: 1fr; }
+      .learn-sidebar { position: relative; max-height: 320px; top: 0; }
+      .learn-content { padding: 20px 16px; }
+    }
+  </style>
+</head>
+<body>
+<nav id="navbar"></nav>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<div class="learn-layout">
+  <!-- ── Sidebar ── -->
+  <aside class="learn-sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-course-title" id="sb-course-title">Đang tải...</div>
+      <div class="progress-wrap" id="progress-wrap" style="display:none">
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill" id="progress-fill" style="width:0%"></div>
+        </div>
+        <div class="progress-label" id="progress-label">0% hoàn thành</div>
+      </div>
+    </div>
+    <div id="sb-sections"></div>
+  </aside>
+
+  <!-- ── Content ── -->
+  <main class="learn-content">
+    <div id="not-enrolled-banner" style="display:none" class="not-enrolled-banner">
+      ⚠️ Bạn chưa mua khóa học này. <a id="buy-link" href="#" style="color:var(--warning);font-weight:700;margin-left:6px">Mua ngay →</a>
+    </div>
+    <div id="lesson-area">
+      <div class="empty-state" style="margin-top:80px">
+        <div class="empty-icon">📖</div>
+        <p class="empty-text">Chọn một bài học để bắt đầu học</p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+renderNavbar('my-courses');
+if (!requireAuth('/login.html')) throw 0;
+if (getUser()?.role !== 'student') { window.location.href = '/index.html'; throw 0; }
+
+const params   = new URLSearchParams(location.search);
+const courseId = params.get('courseId') || params.get('id');
+if (!courseId) { window.location.href = '/my-courses.html'; throw 0; }
+
+let courseData  = null;   // { enrolled, progress_percent, sections }
+let currentLesson = null; // selected lesson object
+
+// ── YouTube embed helper ─────────────────────────────────────────────────────
+function toYouTubeEmbed(url) {
+  if (!url) return null;
+  const ytReg = /(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/;
+  const m = url.match(ytReg);
+  if (m) return `https://www.youtube.com/embed/${m[1]}`;
+  return null;
+}
+
+// ── Load data ────────────────────────────────────────────────────────────────
+async function loadCourse() {
+  showSpinner();
+  // Load course title
+  const cRes = await apiFetch(`/courses/${courseId}`);
+  if (cRes.ok) {
+    const t = cRes.data.data?.title || 'Khóa học';
+    document.title = `${t} – CourseDemy`;
+    document.getElementById('sb-course-title').textContent = t;
+  }
+
+  const { ok, data } = await apiFetch(`/courses/${courseId}/sections`);
+  hideSpinner();
+
+  if (!ok) { showToast(data.message || 'Lỗi tải nội dung', 'error'); return; }
+
+  courseData = data.data;
+
+  if (!courseData.enrolled) {
+    const banner = document.getElementById('not-enrolled-banner');
+    banner.style.display = 'flex';
+    document.getElementById('buy-link').href = `/course.html?id=${courseId}`;
+  } else {
+    document.getElementById('progress-wrap').style.display = '';
+    updateProgress(courseData.progress_percent);
+  }
+
+  renderSidebar();
+}
+
+function updateProgress(pct) {
+  const p = pct ?? 0;
+  document.getElementById('progress-fill').style.width  = `${p}%`;
+  document.getElementById('progress-label').textContent = `${p}% hoàn thành`;
+}
+
+// ── Sidebar ──────────────────────────────────────────────────────────────────
+function renderSidebar() {
+  const container = document.getElementById('sb-sections');
+  const icons = { video: '🎬', content: '📄', quiz: '🧩' };
+  if (!courseData.sections.length) {
+    container.innerHTML = '<p style="padding:20px 18px;color:var(--text-muted);font-size:.85rem">Khóa học chưa có nội dung.</p>';
+    return;
+  }
+  container.innerHTML = courseData.sections.map(s => `
+    <div class="sb-section">
+      <div class="sb-section-title">${escHtml(s.title)}</div>
+      ${s.lessons.map(l => {
+        const completed  = l.progress?.is_completed;
+        const accessible = courseData.enrolled || l.is_preview;
+        const icon = icons[l.type] || '📝';
+        return `<div class="sb-lesson ${currentLesson?.id === l.id ? 'active' : ''}"
+                     id="sb-l-${l.id}" onclick="selectLesson(${l.id})">
+          <span class="sb-lesson-icon">${icon}</span>
+          <span class="sb-lesson-title">${escHtml(l.title)}</span>
+          ${completed ? '<span class="sb-lesson-check">✓</span>' : ''}
+          ${!accessible ? '<span class="sb-lesson-lock">🔒</span>' : ''}
+        </div>`;
+      }).join('')}
+    </div>`).join('');
+}
+
+// ── Select lesson ─────────────────────────────────────────────────────────────
+function selectLesson(lessonId) {
+  // Find lesson in courseData
+  let found = null;
+  for (const s of courseData.sections) {
+    found = s.lessons.find(l => l.id === lessonId);
+    if (found) break;
+  }
+  if (!found) return;
+  currentLesson = found;
+
+  // Update sidebar active state
+  document.querySelectorAll('.sb-lesson').forEach(el => el.classList.remove('active'));
+  document.getElementById(`sb-l-${lessonId}`)?.classList.add('active');
+
+  renderLesson(found);
+}
+
+// ── Render lesson content ─────────────────────────────────────────────────────
+function renderLesson(l) {
+  const accessible = courseData.enrolled || l.is_preview;
+  const area = document.getElementById('lesson-area');
+
+  if (!accessible) {
+    area.innerHTML = `<div class="locked-box">
+      <div class="locked-icon">🔒</div>
+      <h2 style="font-size:1.2rem;font-weight:700;margin-bottom:8px">Bài học bị khóa</h2>
+      <p style="color:var(--text-dim);margin-bottom:20px">Mua khóa học để mở khóa bài này và toàn bộ nội dung.</p>
+      <a href="/course.html?id=${courseId}" class="btn btn-primary">Xem khóa học</a>
+    </div>`;
+    return;
+  }
+
+  if (l.type === 'video')   { renderVideo(l, area); return; }
+  if (l.type === 'content') { renderContent(l, area); return; }
+  if (l.type === 'quiz')    { renderQuiz(l, area); return; }
+}
+
+// Video
+function renderVideo(l, area) {
+  const completed = l.progress?.is_completed;
+  const embedUrl  = toYouTubeEmbed(l.video_url);
+  let mediaHtml;
+  if (embedUrl) {
+    mediaHtml = `<div class="lesson-video-wrap"><iframe src="${embedUrl}" allowfullscreen></iframe></div>`;
+  } else if (l.video_url) {
+    mediaHtml = `<div class="lesson-video-wrap"><video controls src="${l.video_url}"></video></div>`;
+  } else {
+    mediaHtml = `<div style="padding:40px;text-align:center;color:var(--text-muted)">Chưa có video cho bài này.</div>`;
+  }
+
+  area.innerHTML = `
+    <h1 class="lesson-title-big">🎬 ${escHtml(l.title)}</h1>
+    ${l.is_preview ? '<span class="badge badge-info" style="margin-bottom:16px;display:inline-block">Xem thử miễn phí</span>' : ''}
+    ${mediaHtml}
+    ${courseData.enrolled ? `
+      <div style="margin-top:16px">
+        ${completed
+          ? '<div class="enrolled-banner">✅ Bạn đã hoàn thành bài học này</div>'
+          : `<button class="btn btn-success" onclick="markComplete(${l.id}, this)">✓ Đánh dấu hoàn thành</button>`}
+      </div>` : ''}`;
+}
+
+// Content
+function renderContent(l, area) {
+  const completed = l.progress?.is_completed;
+  area.innerHTML = `
+    <h1 class="lesson-title-big">📄 ${escHtml(l.title)}</h1>
+    ${l.is_preview ? '<span class="badge badge-info" style="margin-bottom:16px;display:inline-block">Xem thử miễn phí</span>' : ''}
+    <div class="lesson-body">${l.content_body || '<p style="color:var(--text-muted)">Chưa có nội dung.</p>'}</div>
+    ${courseData.enrolled ? `
+      <div>
+        ${completed
+          ? '<div class="enrolled-banner">✅ Bạn đã hoàn thành bài học này</div>'
+          : `<button class="btn btn-success" onclick="markComplete(${l.id}, this)">✓ Đánh dấu hoàn thành</button>`}
+      </div>` : ''}`;
+}
+
+// Quiz
+function renderQuiz(l, area) {
+  const questions = l.questions || [];
+  const prevScore = l.progress?.quiz_score;
+  const prevDone  = l.progress?.is_completed;
+
+  let questionsHtml = questions.map((q, qi) => `
+    <div class="quiz-question">
+      <div class="quiz-q-text">Câu ${qi+1}. ${escHtml(q.question_text)}</div>
+      <div class="quiz-options" id="q-opts-${q.id}">
+        ${q.options.map((opt, oi) => `
+          <label class="quiz-opt-label" id="opt-${q.id}-${oi}">
+            <input type="radio" name="q-${q.id}" value="${oi}"> ${escHtml(opt)}
+          </label>`).join('')}
+      </div>
+    </div>`).join('');
+
+  const prevInfo = (prevScore !== null && prevScore !== undefined)
+    ? `<div class="quiz-result-box ${prevDone ? 'passed' : 'failed'}" style="margin-bottom:16px">
+        Lần trước: ${prevScore}% — ${prevDone ? '✅ Đạt' : '❌ Chưa đạt'} (cần ≥ 50% để hoàn thành)
+      </div>` : '';
+
+  area.innerHTML = `
+    <h1 class="lesson-title-big">🧩 ${escHtml(l.title)}</h1>
+    ${prevInfo}
+    ${questions.length ? questionsHtml : '<p style="color:var(--text-muted)">Chưa có câu hỏi nào.</p>'}
+    ${courseData.enrolled && questions.length ? `
+      <div id="quiz-result"></div>
+      <button class="btn btn-primary" id="quiz-submit-btn" onclick="submitQuiz(${l.id})">📤 Nộp bài</button>` : ''}`;
+}
+
+// ── API actions ────────────────────────────────────────────────────────────────
+async function markComplete(lessonId, btn) {
+  btn.disabled = true; btn.textContent = 'Đang lưu...';
+  const { ok, data } = await apiFetch(`/lessons/${lessonId}/complete`, { method: 'POST' });
+  if (!ok) { showToast(data.message, 'error'); btn.disabled = false; btn.textContent = '✓ Đánh dấu hoàn thành'; return; }
+
+  showToast('Đã hoàn thành bài học! 🎉', 'success');
+
+  // Update local state
+  markLessonComplete(lessonId, null);
+  updateProgress(data.data.progress_percent);
+  if (courseData.enrolled) document.getElementById('progress-wrap').style.display = '';
+
+  // Replace button with banner
+  btn.parentElement.innerHTML = '<div class="enrolled-banner">✅ Bạn đã hoàn thành bài học này</div>';
+  document.getElementById(`sb-l-${lessonId}`)?.querySelector('.sb-lesson-check')?.remove();
+  const sbEl = document.getElementById(`sb-l-${lessonId}`);
+  if (sbEl && !sbEl.querySelector('.sb-lesson-check')) {
+    sbEl.insertAdjacentHTML('beforeend', '<span class="sb-lesson-check">✓</span>');
+  }
+}
+
+async function submitQuiz(lessonId) {
+  const btn = document.getElementById('quiz-submit-btn');
+  btn.disabled = true; btn.textContent = 'Đang chấm bài...';
+
+  // Collect answers
+  const questions = currentLesson.questions || [];
+  const answers = [];
+  for (const q of questions) {
+    const sel = document.querySelector(`input[name="q-${q.id}"]:checked`);
+    answers.push({ question_id: q.id, selected_index: sel ? parseInt(sel.value) : -1 });
+  }
+
+  const { ok, data } = await apiFetch(`/lessons/${lessonId}/submit-quiz`, {
+    method: 'POST', body: JSON.stringify({ answers }),
+  });
+
+  if (!ok) { showToast(data.message, 'error'); btn.disabled = false; btn.textContent = '📤 Nộp bài'; return; }
+
+  const r = data.data;
+  const passed = r.is_completed;
+
+  // Show result
+  document.getElementById('quiz-result').innerHTML = `
+    <div class="quiz-result-box ${passed ? 'passed' : 'failed'}">
+      ${passed ? '🎉 Chúc mừng bạn đã đạt!' : '😔 Chưa đạt, thử lại nhé!'}<br>
+      Điểm: <strong>${r.quiz_score}%</strong> — Đúng ${r.correct_count}/${r.total_questions} câu
+    </div>`;
+
+  updateProgress(r.progress_percent);
+  if (courseData.enrolled) document.getElementById('progress-wrap').style.display = '';
+
+  // Highlight correct/wrong options
+  for (const q of questions) {
+    const radios = document.querySelectorAll(`input[name="q-${q.id}"]`);
+    radios.forEach(r2 => {
+      const label = r2.closest('.quiz-opt-label');
+      const idx   = parseInt(r2.value);
+      if (idx === q.correct_index) label.classList.add('correct');
+      else if (r2.checked)         label.classList.add('wrong');
+      r2.disabled = true;
+    });
+  }
+
+  btn.textContent = '✅ Đã nộp bài';
+
+  if (passed) markLessonComplete(lessonId, r.quiz_score);
+}
+
+function markLessonComplete(lessonId, score) {
+  for (const s of courseData.sections) {
+    const l = s.lessons.find(x => x.id === lessonId);
+    if (l) {
+      if (!l.progress) l.progress = {};
+      l.progress.is_completed = true;
+      l.progress.quiz_score   = score;
+      break;
+    }
+  }
+}
+
+function escHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+loadCourse();
+</script>
+</body>
+</html>

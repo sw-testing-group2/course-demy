@@ -1,8 +1,13 @@
 const db = require('../config/database');
+const { validateCoupon } = require('./coupons.controller');
 
 // ─── POST /api/orders/checkout ───────────────────────────────────────────────
+// Task 10: Chỉ tạo order ở trạng thái 'pending', KHÔNG tạo enrollment, KHÔNG xóa giỏ hàng.
+// Việc enroll + xóa giỏ hàng sẽ xảy ra SAU KHI thanh toán thành công (payments.controller).
 function checkout(req, res) {
   try {
+    const { coupon_code } = req.body;
+
     // Lấy toàn bộ giỏ hàng kèm thông tin giá
     const cartItems = db.prepare(`
       SELECT
@@ -18,34 +23,45 @@ function checkout(req, res) {
       return res.status(400).json({ success: false, message: 'Giỏ hàng trống' });
     }
 
-    const totalAmount = cartItems.reduce((sum, item) => sum + item.price, 0);
+    const subtotal = cartItems.reduce((sum, item) => sum + item.price, 0);
 
-    // ── DB Transaction: tất cả hoặc không có gì ────────────────────────────
+    // ── Xử lý coupon nếu có ───────────────────────────────────────────────
+    let discountAmount = 0;
+    let couponId       = null;
+
+    if (coupon_code) {
+      const validation = validateCoupon(req.user.id, coupon_code, subtotal);
+      if (!validation.ok) {
+        return res.status(validation.status).json({ success: false, message: validation.message });
+      }
+      discountAmount = validation.discount_amount;
+      couponId       = validation.coupon.id;
+    }
+
+    const totalAmount = subtotal - discountAmount;
+
+    // ── Tạo order ở trạng thái PENDING ────────────────────────────────────
     const doCheckout = db.transaction(() => {
-      // 1. Tạo order
+      // 1. Tạo order (status='pending', chưa thanh toán)
       const orderResult = db
-        .prepare(`INSERT INTO orders (user_id, total_amount, status) VALUES (?, ?, 'paid')`)
-        .run(req.user.id, totalAmount);
+        .prepare(
+          `INSERT INTO orders (user_id, total_amount, status, coupon_id, discount_amount)
+           VALUES (?, ?, 'pending', ?, ?)`
+        )
+        .run(req.user.id, totalAmount, couponId, discountAmount);
 
       const orderId = orderResult.lastInsertRowid;
 
-      // 2. Insert từng course vào order_items (giá tại thời điểm mua)
+      // 2. Lưu order_items (giá tại thời điểm đặt hàng)
       const insertOrderItem = db.prepare(
         'INSERT INTO order_items (order_id, course_id, price) VALUES (?, ?, ?)'
       );
-
-      // 3. INSERT OR IGNORE vào enrollments
-      const insertEnrollment = db.prepare(
-        'INSERT OR IGNORE INTO enrollments (user_id, course_id) VALUES (?, ?)'
-      );
-
       for (const item of cartItems) {
         insertOrderItem.run(orderId, item.course_id, item.price);
-        insertEnrollment.run(req.user.id, item.course_id);
       }
 
-      // 4. Xóa toàn bộ giỏ hàng
-      db.prepare('DELETE FROM cart_items WHERE user_id = ?').run(req.user.id);
+      // KHÔNG tạo enrollments, KHÔNG xóa cart_items ở bước này.
+      // Chờ thanh toán xác nhận (payments.controller → confirmPaymentSuccess)
 
       return orderId;
     });
@@ -54,16 +70,14 @@ function checkout(req, res) {
 
     return res.status(201).json({
       success: true,
-      message: 'Thanh toán thành công',
+      message: 'Đã tạo đơn hàng, vui lòng chọn phương thức thanh toán',
       data: {
-        order_id:     orderId,
-        total_amount: totalAmount,
-        status:       'paid',
-        items: cartItems.map((item) => ({
-          course_id: item.course_id,
-          title:     item.title,
-          price:     item.price,
-        })),
+        order_id:        orderId,
+        subtotal,
+        discount_amount: discountAmount,
+        total_amount:    totalAmount,
+        coupon_code:     couponId ? coupon_code.trim().toUpperCase() : null,
+        status:          'pending',
       },
     });
   } catch (err) {
@@ -75,15 +89,13 @@ function checkout(req, res) {
 // ─── GET /api/orders ─────────────────────────────────────────────────────────
 function getOrders(req, res) {
   try {
-    // Lấy danh sách orders của user
     const orders = db.prepare(`
-      SELECT id, total_amount, status, created_at
+      SELECT id, total_amount, discount_amount, coupon_id, status, payment_method, created_at
       FROM orders
       WHERE user_id = ?
       ORDER BY created_at DESC
     `).all(req.user.id);
 
-    // Với mỗi order, lấy danh sách items
     const getItems = db.prepare(`
       SELECT
         oi.course_id,
@@ -96,10 +108,13 @@ function getOrders(req, res) {
     `);
 
     const data = orders.map((order) => ({
-      id:           order.id,
-      total_amount: order.total_amount,
-      status:       order.status,
-      created_at:   order.created_at,
+      id:              order.id,
+      total_amount:    order.total_amount,
+      discount_amount: order.discount_amount,
+      coupon_id:       order.coupon_id,
+      status:          order.status,
+      payment_method:  order.payment_method,
+      created_at:      order.created_at,
       items: getItems.all(order.id).map((item) => ({
         course_id: item.course_id,
         title:     item.title,

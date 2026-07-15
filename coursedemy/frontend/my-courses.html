@@ -4,6 +4,23 @@
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Khóa học của tôi – CourseDemy</title>
   <link rel="stylesheet" href="css/style.css">
+  <style>
+    .my-course-card { display: flex; flex-direction: column; }
+    .progress-track {
+      height: 5px;
+      background: var(--border);
+      border-radius: 100px;
+      overflow: hidden;
+      margin: 8px 0 4px;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary-dark), #a78bfa);
+      border-radius: 100px;
+      transition: width .4s ease;
+    }
+    .progress-text { font-size: .75rem; color: var(--text-dim); }
+  </style>
 </head>
 <body>
 <nav id="navbar"></nav>
@@ -44,18 +61,31 @@ if (getUser()?.role !== 'student') window.location.href = '/index.html';
 
   el.innerHTML = `<div class="courses-grid">
     ${items.map(item => {
-      const c = item.course;
+      const c   = item.course;
+      const pct = c.progress_percent ?? 0;
       const thumb = c.thumbnail
         ? `<img src="${c.thumbnail}" alt="${c.title}" class="card-thumb">`
         : `<div class="card-thumb-placeholder"><span>📚</span></div>`;
-      return `<div class="course-card">
-        <div class="card-thumb-wrap">${thumb}</div>
+      return `<div class="course-card my-course-card">
+        <a href="/learn.html?courseId=${c.id}" class="card-thumb-wrap">${thumb}</a>
         <div class="card-body">
-          <h3 class="card-title">${c.title}</h3>
+          <h3 class="card-title"><a href="/learn.html?courseId=${c.id}">${c.title}</a></h3>
           <p class="card-instructor">👤 ${c.instructor?.full_name || '—'}</p>
+
+          <div>
+            <div class="progress-track">
+              <div class="progress-fill" style="width:${pct}%"></div>
+            </div>
+            <div class="progress-text">${pct}% hoàn thành</div>
+          </div>
+
           <div class="enrolled-banner" style="font-size:.8rem;padding:8px 12px">
             ✅ Đã đăng ký ${formatDate(item.enrolled_at)}
           </div>
+
+          <a href="/learn.html?courseId=${c.id}" class="btn btn-primary btn-full" style="margin-top:auto">
+            📖 Vào học
+          </a>
         </div>
       </div>`;
     }).join('')}

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Quản lý Coupon – CourseDemy Admin</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav id="navbar"></nav>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<!-- ═══════════ MODAL ═══════════ -->
+<div class="modal-overlay hidden" id="coupon-modal">
+  <div class="modal-box" style="max-width:580px;width:96%">
+    <div class="modal-header">
+      <h2 class="modal-title" id="modal-title">Thêm coupon</h2>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <form id="coupon-form" autocomplete="off">
+      <input type="hidden" id="edit-id">
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-group">
+          <label>Mã code *</label>
+          <input id="f-code" type="text" class="form-control" placeholder="VD: SALE50" required style="text-transform:uppercase">
+        </div>
+        <div class="form-group">
+          <label>Trạng thái</label>
+          <select id="f-status" class="form-control">
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Mô tả</label>
+        <input id="f-description" type="text" class="form-control" placeholder="Mô tả ngắn">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-group">
+          <label>Loại giảm giá *</label>
+          <select id="f-type" class="form-control" required>
+            <option value="percent">Phần trăm (%)</option>
+            <option value="fixed">Số tiền cố định (đ)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Giá trị giảm *</label>
+          <input id="f-value" type="number" class="form-control" placeholder="VD: 50 hoặc 100000" min="0" required>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-group">
+          <label>Giảm tối đa (đ) <small style="font-weight:400">tùy chọn</small></label>
+          <input id="f-max-discount" type="number" class="form-control" placeholder="Bỏ trống = không giới hạn" min="0">
+        </div>
+        <div class="form-group">
+          <label>Đơn hàng tối thiểu (đ)</label>
+          <input id="f-min-order" type="number" class="form-control" value="0" min="0">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Giới hạn lượt dùng <small style="font-weight:400">tùy chọn</small></label>
+        <input id="f-limit" type="number" class="form-control" placeholder="Bỏ trống = không giới hạn" min="1">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="form-group">
+          <label>Hiệu lực từ *</label>
+          <input id="f-valid-from" type="datetime-local" class="form-control" required>
+        </div>
+        <div class="form-group">
+          <label>Hiệu lực đến *</label>
+          <input id="f-valid-to" type="datetime-local" class="form-control" required>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:8px">
+        <button type="button" class="btn btn-outline" onclick="closeModal()">Hủy</button>
+        <button type="submit" class="btn btn-primary" id="modal-save-btn">Lưu coupon</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ═══════════ MAIN ═══════════ -->
+<main class="container section">
+  <div class="page-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px">
+    <div>
+      <h1 class="page-title">🎟 Quản lý Coupon</h1>
+      <p class="page-subtitle">Tạo và quản lý mã giảm giá</p>
+    </div>
+    <div style="display:flex;gap:10px">
+      <a href="/admin.html" class="btn btn-outline">← Admin</a>
+      <button class="btn btn-primary" onclick="openAdd()">+ Thêm coupon</button>
+    </div>
+  </div>
+
+  <div class="table-wrap" id="table-wrap">
+    <div class="empty-state"><div class="spinner-ring"></div></div>
+  </div>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+renderNavbar('admin');
+if (!requireAuth('/login.html')) throw 0;
+if (getUser()?.role !== 'admin') { window.location.href = '/index.html'; throw 0; }
+
+async function loadCoupons() {
+  const { ok, data } = await apiFetch('/admin/coupons');
+  const wrap = document.getElementById('table-wrap');
+  if (!ok) { wrap.innerHTML = `<p style="padding:20px;color:var(--danger)">${data.message}</p>`; return; }
+  const items = data.data;
+  if (!items.length) {
+    wrap.innerHTML = `<div class="empty-state" style="padding:40px">
+      <div class="empty-icon">🎟</div>
+      <p class="empty-text">Chưa có coupon nào. Nhấn "+ Thêm coupon" để tạo mới.</p>
+    </div>`;
+    return;
+  }
+
+  wrap.innerHTML = `<table>
+    <thead><tr>
+      <th>Code</th><th>Loại</th><th>Giá trị giảm</th>
+      <th>Đã dùng</th><th>Hiệu lực</th><th>Trạng thái</th><th>Thao tác</th>
+    </tr></thead>
+    <tbody>${items.map(c => {
+      const discLabel = c.discount_type === 'percent'
+        ? `${c.discount_value}%${c.max_discount ? ` (tối đa ${formatPriceText(c.max_discount)})` : ''}`
+        : formatPriceText(c.discount_value);
+      const usageLabel = c.usage_limit ? `${c.used_count}/${c.usage_limit}` : `${c.used_count}/∞`;
+      const badge = c.status === 'active'
+        ? '<span class="badge badge-success">Active</span>'
+        : '<span class="badge badge-danger">Inactive</span>';
+      const encoded = encodeURIComponent(JSON.stringify(c));
+      return `<tr>
+        <td><strong style="font-family:monospace;color:var(--primary)">${escHtml(c.code)}</strong>
+            ${c.description ? `<br><small style="color:var(--text-muted)">${escHtml(c.description)}</small>` : ''}</td>
+        <td>${c.discount_type === 'percent' ? '📊 Phần trăm' : '💰 Cố định'}</td>
+        <td>${discLabel}</td>
+        <td>${usageLabel}</td>
+        <td style="font-size:.82rem">${(c.valid_from||'').slice(0,10)}<br>→ ${(c.valid_to||'').slice(0,10)}</td>
+        <td>${badge}</td>
+        <td><div class="td-actions">
+          <button class="btn btn-sm btn-outline" onclick="openEdit(decodeEdit('${encoded}'))">✏️ Sửa</button>
+          <button class="btn btn-sm btn-outline-danger" onclick="deleteCoupon(${c.id},'${escHtml(c.code)}')">🗑 Xóa</button>
+        </div></td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+function decodeEdit(encoded) { return JSON.parse(decodeURIComponent(encoded)); }
+
+function openAdd() {
+  document.getElementById('modal-title').textContent = '+ Thêm coupon mới';
+  document.getElementById('modal-save-btn').textContent = 'Tạo coupon';
+  document.getElementById('edit-id').value = '';
+  document.getElementById('coupon-form').reset();
+  const now = new Date(); now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+  document.getElementById('f-valid-from').value = now.toISOString().slice(0,16);
+  document.getElementById('coupon-modal').classList.remove('hidden');
+}
+
+function openEdit(c) {
+  document.getElementById('modal-title').textContent = '✏️ Sửa coupon';
+  document.getElementById('modal-save-btn').textContent = 'Cập nhật';
+  document.getElementById('edit-id').value      = c.id;
+  document.getElementById('f-code').value       = c.code;
+  document.getElementById('f-status').value     = c.status;
+  document.getElementById('f-description').value= c.description || '';
+  document.getElementById('f-type').value       = c.discount_type;
+  document.getElementById('f-value').value      = c.discount_value;
+  document.getElementById('f-max-discount').value = c.max_discount || '';
+  document.getElementById('f-min-order').value  = c.min_order_amount || 0;
+  document.getElementById('f-limit').value      = c.usage_limit || '';
+  const toLocal = s => {
+    if (!s) return '';
+    const d = new Date(s); d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    return d.toISOString().slice(0,16);
+  };
+  document.getElementById('f-valid-from').value = toLocal(c.valid_from);
+  document.getElementById('f-valid-to').value   = toLocal(c.valid_to);
+  document.getElementById('coupon-modal').classList.remove('hidden');
+}
+
+function closeModal() { document.getElementById('coupon-modal').classList.add('hidden'); }
+document.getElementById('coupon-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeModal(); });
+
+document.getElementById('coupon-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = document.getElementById('modal-save-btn');
+  btn.disabled = true; showSpinner();
+
+  const editId = document.getElementById('edit-id').value;
+  const isEdit = !!editId;
+  const payload = {
+    code:             document.getElementById('f-code').value.trim().toUpperCase(),
+    description:      document.getElementById('f-description').value.trim() || undefined,
+    discount_type:    document.getElementById('f-type').value,
+    discount_value:   parseFloat(document.getElementById('f-value').value),
+    min_order_amount: parseFloat(document.getElementById('f-min-order').value) || 0,
+    valid_from:       document.getElementById('f-valid-from').value.replace('T',' ') + ':00',
+    valid_to:         document.getElementById('f-valid-to').value.replace('T',' ') + ':00',
+    status:           document.getElementById('f-status').value,
+  };
+  const maxD = document.getElementById('f-max-discount').value;
+  if (maxD) payload.max_discount = parseFloat(maxD);
+  const lim = document.getElementById('f-limit').value;
+  if (lim) payload.usage_limit = parseInt(lim);
+
+  const endpoint = isEdit ? `/admin/coupons/${editId}` : '/admin/coupons';
+  const method   = isEdit ? 'PUT' : 'POST';
+  const { ok, data } = await apiFetch(endpoint, { method, body: JSON.stringify(payload) });
+  hideSpinner(); btn.disabled = false;
+  if (!ok) { showToast(data.message, 'error'); return; }
+  showToast(isEdit ? 'Cập nhật thành công!' : 'Tạo coupon thành công!', 'success');
+  closeModal(); loadCoupons();
+});
+
+async function deleteCoupon(id, code) {
+  if (!confirm(`Xóa coupon "${code}"? Không thể hoàn tác.`)) return;
+  showSpinner();
+  const { ok, data } = await apiFetch(`/admin/coupons/${id}`, { method: 'DELETE' });
+  hideSpinner();
+  if (!ok) { showToast(data.message, 'error'); return; }
+  showToast('Đã xóa coupon', 'success'); loadCoupons();
+}
+
+function escHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+loadCoupons();
+</script>
+</body>
+</html>

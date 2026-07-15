@@ -10,12 +10,108 @@
 <div id="toast-container"></div>
 <div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
 
-<main class="container section" style="max-width:680px">
+<!-- ══════════════════════════ LESSON MODAL ══════════════════════════ -->
+<div class="modal-overlay hidden" id="lesson-modal">
+  <div class="modal-box" style="max-width:620px;width:96%">
+    <div class="modal-header">
+      <h2 class="modal-title" id="lm-title">Thêm bài học</h2>
+      <button class="modal-close" onclick="closeLessonModal()">×</button>
+    </div>
+    <form id="lesson-form" autocomplete="off">
+      <input type="hidden" id="lm-section-id">
+      <input type="hidden" id="lm-lesson-id">
+
+      <!-- Loại bài học (radio, ẩn khi đang edit) -->
+      <div class="form-group" id="lm-type-group">
+        <label>Loại bài học *</label>
+        <div class="radio-group">
+          <label class="radio-label"><input type="radio" name="lm-type" value="video" checked onchange="onLessonTypeChange()"> 🎬 Video</label>
+          <label class="radio-label"><input type="radio" name="lm-type" value="content" onchange="onLessonTypeChange()"> 📄 Bài đọc</label>
+          <label class="radio-label"><input type="radio" name="lm-type" value="quiz" onchange="onLessonTypeChange()"> 🧩 Quiz</label>
+        </div>
+      </div>
+
+      <!-- Tiêu đề -->
+      <div class="form-group">
+        <label>Tiêu đề bài học *</label>
+        <input id="lm-lesson-title" type="text" class="form-control" placeholder="VD: Giới thiệu Python" required>
+      </div>
+
+      <!-- Video fields -->
+      <div id="lm-video-fields">
+        <div class="form-group">
+          <label>URL Video</label>
+          <input id="lm-video-url" type="text" class="form-control" placeholder="https://youtube.com/embed/...">
+        </div>
+        <div class="form-group">
+          <label>Thời lượng (giây)</label>
+          <input id="lm-duration" type="number" class="form-control" placeholder="VD: 600" min="0">
+        </div>
+      </div>
+
+      <!-- Content fields -->
+      <div id="lm-content-fields" style="display:none">
+        <div class="form-group">
+          <label>Nội dung bài đọc</label>
+          <textarea id="lm-content-body" class="form-control" style="min-height:140px" placeholder="Nội dung Markdown hoặc HTML..."></textarea>
+        </div>
+      </div>
+
+      <!-- Preview checkbox -->
+      <div class="form-group" style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+        <input id="lm-is-preview" type="checkbox" style="accent-color:var(--primary);width:18px;height:18px;cursor:pointer">
+        <label for="lm-is-preview" style="text-transform:none;font-size:0.9rem;font-weight:500;color:var(--text);margin:0;cursor:pointer">
+          Cho phép xem thử (preview miễn phí)
+        </label>
+      </div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button type="button" class="btn btn-outline" onclick="closeLessonModal()">Hủy</button>
+        <button type="submit" class="btn btn-primary" id="lm-submit-btn">Tạo bài học</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════════════════════ QUESTION MODAL ══════════════════════════ -->
+<div class="modal-overlay hidden" id="question-modal">
+  <div class="modal-box" style="max-width:580px;width:96%">
+    <div class="modal-header">
+      <h2 class="modal-title" id="qm-title">Thêm câu hỏi</h2>
+      <button class="modal-close" onclick="closeQuestionModal()">×</button>
+    </div>
+    <form id="question-form" autocomplete="off">
+      <input type="hidden" id="qm-lesson-id">
+      <input type="hidden" id="qm-question-id">
+
+      <div class="form-group">
+        <label>Câu hỏi *</label>
+        <textarea id="qm-question-text" class="form-control" style="min-height:80px" placeholder="Nhập câu hỏi..." required></textarea>
+      </div>
+
+      <div class="form-group">
+        <label>Các lựa chọn <small style="text-transform:none;font-weight:400">(tối thiểu 2 — chọn đáp án đúng bằng radio)</small></label>
+        <div class="options-builder" id="options-builder"></div>
+        <button type="button" class="add-option-btn" onclick="addOptionRow()">+ Thêm lựa chọn</button>
+        <p class="options-hint">Tick vào nút radio bên trái để đánh dấu đáp án đúng</p>
+      </div>
+
+      <div style="display:flex;gap:10px;justify-content:flex-end">
+        <button type="button" class="btn btn-outline" onclick="closeQuestionModal()">Hủy</button>
+        <button type="submit" class="btn btn-primary" id="qm-submit-btn">Lưu câu hỏi</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- ══════════════════════════ MAIN ══════════════════════════ -->
+<main class="container section" style="max-width:780px">
   <div class="page-header">
     <h1 class="page-title" id="form-title">+ Tạo khóa học mới</h1>
     <p class="page-subtitle">Khóa học sẽ cần được Admin duyệt trước khi hiển thị</p>
   </div>
 
+  <!-- ── Thông tin cơ bản ── -->
   <div class="card">
     <form id="course-form">
       <div class="form-group">
@@ -50,6 +146,29 @@
       </div>
     </form>
   </div>
+
+  <!-- ══ Khu vực nội dung (chỉ hiện khi edit) ══ -->
+  <div id="content-builder-wrap" style="display:none">
+    <div class="content-builder">
+      <div class="content-builder-header">
+        <h2 class="content-builder-title">📚 Nội dung khóa học</h2>
+        <button class="btn btn-primary btn-sm" onclick="openAddSection()">+ Thêm chương</button>
+      </div>
+
+      <!-- Inline add-section form (ẩn mặc định) -->
+      <div class="inline-edit-form hidden" id="add-section-form">
+        <input id="new-section-title" type="text" class="form-control" placeholder="Tên chương mới..." style="max-width:340px">
+        <button class="btn btn-primary btn-sm" onclick="submitAddSection()">Tạo</button>
+        <button class="btn btn-outline btn-sm" onclick="closeAddSection()">Hủy</button>
+      </div>
+
+      <div id="sections-list">
+        <div class="empty-state" style="padding:40px 0">
+          <div class="spinner-ring" style="width:32px;height:32px;border-width:3px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
 </main>
 
 <script src="js/api.js"></script>
@@ -59,8 +178,12 @@ if (!requireAuth('/login.html')) throw 0;
 if (!requireRole('instructor', '/index.html')) throw 0;
 
 const courseId = new URLSearchParams(location.search).get('id');
-const isEdit = !!courseId;
+const isEdit   = !!courseId;
 
+// ── State ──────────────────────────────────────────────────────────────────
+let currentSections = []; // raw data from API
+
+// ── Init ───────────────────────────────────────────────────────────────────
 async function init() {
   // Load categories
   const catRes = await apiFetch('/categories');
@@ -70,8 +193,10 @@ async function init() {
   }
 
   if (isEdit) {
-    document.getElementById('form-title').textContent = '✏️ Chỉnh sửa khóa học';
-    document.getElementById('submit-btn').textContent = '💾 Cập nhật';
+    document.getElementById('form-title').textContent   = '✏️ Chỉnh sửa khóa học';
+    document.getElementById('submit-btn').textContent   = '💾 Cập nhật';
+    document.getElementById('content-builder-wrap').style.display = '';
+
     showSpinner();
     const { ok, data } = await apiFetch(`/courses/${courseId}`);
     hideSpinner();
@@ -83,9 +208,14 @@ async function init() {
     document.getElementById('price').value       = c.price ?? 0;
     document.getElementById('thumbnail').value   = c.thumbnail || '';
     if (c.category?.id) document.getElementById('category_id').value = c.category.id;
+
+    loadSections();
   }
 }
 
+// ══════════════════════════════════════════════════════
+//  COURSE FORM SUBMIT
+// ══════════════════════════════════════════════════════
 document.getElementById('course-form').addEventListener('submit', async e => {
   e.preventDefault();
   const btn = document.getElementById('submit-btn');
@@ -109,9 +239,401 @@ document.getElementById('course-form').addEventListener('submit', async e => {
   btn.textContent = isEdit ? '💾 Cập nhật' : '💾 Lưu khóa học';
 
   if (!ok) { showToast(data.message, 'error'); return; }
-  showToast(isEdit ? 'Cập nhật thành công!' : 'Tạo thành công! Đang chờ Admin duyệt.', 'success');
-  setTimeout(() => window.location.href = '/instructor.html', 1000);
+  showToast(isEdit ? 'Cập nhật thành công!' : 'Tạo thành công! Chuyển sang trang chỉnh sửa...', 'success');
+
+  if (!isEdit) {
+    // Redirect sang edit mode với courseId mới
+    setTimeout(() => window.location.href = `/instructor-course-form.html?id=${data.data.id}`, 900);
+  }
 });
+
+// ══════════════════════════════════════════════════════
+//  SECTIONS
+// ══════════════════════════════════════════════════════
+async function loadSections() {
+  const res = await apiFetch(`/instructor/courses/${courseId}/sections`);
+  if (!res.ok) { showToast(res.data.message || 'Không tải được nội dung', 'error'); return; }
+  currentSections = res.data.data;
+  renderSections();
+}
+
+function renderSections() {
+  const container = document.getElementById('sections-list');
+  if (!currentSections.length) {
+    container.innerHTML = `<div class="empty-state" style="padding:32px 0">
+      <div class="empty-icon" style="font-size:2.5rem">📂</div>
+      <p class="empty-text">Chưa có chương nào. Nhấn "+ Thêm chương" để bắt đầu.</p>
+    </div>`;
+    return;
+  }
+
+  container.innerHTML = currentSections.map((s, si) => `
+    <div class="section-card" id="sec-${s.id}">
+      <!-- Inline edit form (ẩn mặc định) -->
+      <div class="inline-edit-form hidden" id="sec-edit-${s.id}">
+        <input id="sec-edit-input-${s.id}" type="text" class="form-control" value="${escHtml(s.title)}" placeholder="Tên chương">
+        <button class="btn btn-primary btn-sm" onclick="submitEditSection(${s.id})">Lưu</button>
+        <button class="btn btn-outline btn-sm" onclick="toggleSectionEdit(${s.id}, false)">Hủy</button>
+      </div>
+
+      <!-- Header row -->
+      <div class="section-header-row" onclick="toggleSection(${s.id})" id="sec-hdr-${s.id}">
+        <div class="section-header-left">
+          <span class="section-chevron" id="sec-chev-${s.id}">▶</span>
+          <span class="section-title-text">Chương ${si + 1}: ${escHtml(s.title)}</span>
+          <span class="section-lesson-count">${s.lessons.length} bài</span>
+        </div>
+        <div class="section-actions" onclick="event.stopPropagation()">
+          <button class="btn btn-sm btn-outline" onclick="toggleSectionEdit(${s.id}, true)">✏️</button>
+          <button class="btn btn-sm btn-outline-danger" onclick="deleteSection(${s.id},'${escHtml(s.title)}')">🗑</button>
+        </div>
+      </div>
+
+      <!-- Lessons list (collapsed by default) -->
+      <div class="lessons-list collapsed" id="sec-lessons-${s.id}">
+        ${s.lessons.map(l => renderLessonRow(l, s.id)).join('')}
+        <div class="add-lesson-bar">
+          <button class="btn btn-outline btn-sm" style="width:100%" onclick="openAddLesson(${s.id})">+ Thêm bài học</button>
+        </div>
+      </div>
+    </div>
+  `).join('');
+}
+
+function renderLessonRow(l, sectionId) {
+  const icons = { video: '🎬', content: '📄', quiz: '🧩' };
+  const typeClasses = { video: 'type-icon-video', content: 'type-icon-content', quiz: 'type-icon-quiz' };
+  const typeLabels  = { video: 'Video', content: 'Bài đọc', quiz: 'Quiz' };
+  const icon = icons[l.type] || '📝';
+
+  const previewBadge = l.is_preview
+    ? `<span class="badge badge-info" style="font-size:.7rem">Xem thử</span>` : '';
+  const typeBadge = `<span style="font-size:.72rem;color:var(--text-muted)">${typeLabels[l.type]}</span>`;
+
+  const quizBlock = l.type === 'quiz' ? renderQuizBlock(l) : '';
+
+  return `
+    <div>
+      <div class="lesson-row" id="lesson-row-${l.id}">
+        <span class="lesson-icon ${typeClasses[l.type]}">${icon}</span>
+        <div class="lesson-info">
+          <div class="lesson-title-text">${escHtml(l.title)}</div>
+          <div class="lesson-meta">${typeBadge} ${previewBadge}</div>
+        </div>
+        <div class="lesson-actions">
+          <button class="btn btn-sm btn-outline" onclick="openEditLesson(${JSON.stringify(l).replace(/"/g,'&quot;')})">✏️</button>
+          <button class="btn btn-sm btn-outline-danger" onclick="deleteLesson(${l.id},'${escHtml(l.title)}')">🗑</button>
+        </div>
+      </div>
+      ${quizBlock}
+    </div>`;
+}
+
+function renderQuizBlock(l) {
+  const questions = l.questions || [];
+  const qRows = questions.map((q, qi) => `
+    <div class="question-item" id="q-${q.id}">
+      <div class="question-text">Q${qi + 1}. ${escHtml(q.question_text)}</div>
+      <div class="option-list">
+        ${q.options.map((opt, oi) => `
+          <div class="option-item ${oi === q.correct_index ? 'correct' : ''}">
+            <span class="opt-letter">${String.fromCharCode(65 + oi)}</span>
+            ${escHtml(opt)}
+          </div>`).join('')}
+      </div>
+      <div class="question-actions">
+        <button class="btn btn-sm btn-outline" onclick="openEditQuestion(${JSON.stringify(q).replace(/"/g,'&quot;')})">✏️ Sửa</button>
+        <button class="btn btn-sm btn-outline-danger" onclick="deleteQuestion(${q.id})">🗑 Xóa</button>
+      </div>
+    </div>`).join('');
+
+  return `<div class="quiz-block" id="quiz-block-${l.id}">
+    <div class="quiz-block-header">
+      <span>🧩 Câu hỏi Quiz (${questions.length})</span>
+      <button class="btn btn-sm btn-outline" style="color:#a78bfa;border-color:#a78bfa;padding:4px 12px;font-size:.78rem"
+              onclick="openAddQuestion(${l.id})">+ Thêm câu hỏi</button>
+    </div>
+    ${questions.length ? qRows : '<p style="color:var(--text-muted);font-size:.82rem">Chưa có câu hỏi nào.</p>'}
+  </div>`;
+}
+
+// Toggle section open/close
+function toggleSection(id) {
+  const list = document.getElementById(`sec-lessons-${id}`);
+  const chev = document.getElementById(`sec-chev-${id}`);
+  list.classList.toggle('collapsed');
+  chev.classList.toggle('open');
+}
+
+// ── Add section ──────────────────────────────────────────────────────────
+function openAddSection() {
+  document.getElementById('add-section-form').classList.remove('hidden');
+  document.getElementById('new-section-title').focus();
+}
+function closeAddSection() {
+  document.getElementById('add-section-form').classList.add('hidden');
+  document.getElementById('new-section-title').value = '';
+}
+async function submitAddSection() {
+  const title = document.getElementById('new-section-title').value.trim();
+  if (!title) { showToast('Vui lòng nhập tên chương', 'error'); return; }
+  showSpinner();
+  const { ok, data } = await apiFetch(`/instructor/courses/${courseId}/sections`, {
+    method: 'POST', body: JSON.stringify({ title }),
+  });
+  hideSpinner();
+  if (!ok) { showToast(data.message, 'error'); return; }
+  showToast('Tạo chương thành công!', 'success');
+  closeAddSection();
+  loadSections();
+}
+
+// ── Edit section (inline) ────────────────────────────────────────────────
+function toggleSectionEdit(id, show) {
+  const editDiv = document.getElementById(`sec-edit-${id}`);
+  const hdrDiv  = document.getElementById(`sec-hdr-${id}`);
+  editDiv.classList.toggle('hidden', !show);
+  hdrDiv.style.display = show ? 'none' : '';
+}
+async function submitEditSection(id) {
+  const title = document.getElementById(`sec-edit-input-${id}`).value.trim();
+  if (!title) return;
+  showSpinner();
+  const { ok, data } = await apiFetch(`/instructor/sections/${id}`, {
+    method: 'PUT', body: JSON.stringify({ title }),
+  });
+  hideSpinner();
+  if (!ok) { showToast(data.message, 'error'); return; }
+  showToast('Cập nhật chương thành công!', 'success');
+  loadSections();
+}
+
+// ── Delete section ────────────────────────────────────────────────────────
+async function deleteSection(id, name) {
+  if (!confirm(`Xóa chương "${name}" và toàn bộ bài học bên trong? Không thể hoàn tác.`)) return;
+  showSpinner();
+  const { ok, data } = await apiFetch(`/instructor/sections/${id}`, { method: 'DELETE' });
+  hideSpinner();
+  if (!ok) { showToast(data.message, 'error'); return; }
+  showToast('Đã xóa chương', 'success');
+  loadSections();
+}
+
+// ══════════════════════════════════════════════════════
+//  LESSON MODAL
+// ══════════════════════════════════════════════════════
+function onLessonTypeChange() {
+  const type = document.querySelector('input[name="lm-type"]:checked')?.value;
+  document.getElementById('lm-video-fields').style.display   = type === 'video'   ? '' : 'none';
+  document.getElementById('lm-content-fields').style.display = type === 'content' ? '' : 'none';
+}
+
+function openAddLesson(sectionId) {
+  document.getElementById('lm-section-id').value = sectionId;
+  document.getElementById('lm-lesson-id').value  = '';
+  document.getElementById('lm-title').textContent  = 'Thêm bài học mới';
+  document.getElementById('lm-submit-btn').textContent = 'Tạo bài học';
+  document.getElementById('lm-type-group').style.display = '';
+  document.querySelector('input[name="lm-type"][value="video"]').checked = true;
+  document.getElementById('lm-lesson-title').value = '';
+  document.getElementById('lm-video-url').value    = '';
+  document.getElementById('lm-duration').value     = '';
+  document.getElementById('lm-content-body').value = '';
+  document.getElementById('lm-is-preview').checked = false;
+  onLessonTypeChange();
+  document.getElementById('lesson-modal').classList.remove('hidden');
+  document.getElementById('lm-lesson-title').focus();
+}
+
+function openEditLesson(l) {
+  document.getElementById('lm-section-id').value = l.section_id || '';
+  document.getElementById('lm-lesson-id').value  = l.id;
+  document.getElementById('lm-title').textContent  = '✏️ Sửa bài học';
+  document.getElementById('lm-submit-btn').textContent = 'Cập nhật';
+  document.getElementById('lm-type-group').style.display = 'none'; // không cho đổi type
+
+  document.getElementById('lm-lesson-title').value = l.title || '';
+  document.getElementById('lm-video-url').value    = l.video_url || '';
+  document.getElementById('lm-duration').value     = l.duration_seconds || '';
+  document.getElementById('lm-content-body').value = l.content_body || '';
+  document.getElementById('lm-is-preview').checked = !!l.is_preview;
+
+  // Show fields tương ứng type
+  document.getElementById('lm-video-fields').style.display   = l.type === 'video'   ? '' : 'none';
+  document.getElementById('lm-content-fields').style.display = l.type === 'content' ? '' : 'none';
+
+  document.getElementById('lesson-modal').classList.remove('hidden');
+}
+
+function closeLessonModal() {
+  document.getElementById('lesson-modal').classList.add('hidden');
+}
+document.getElementById('lesson-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeLessonModal(); });
+
+document.getElementById('lesson-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = document.getElementById('lm-submit-btn');
+  btn.disabled = true;
+  showSpinner();
+
+  const lessonId  = document.getElementById('lm-lesson-id').value;
+  const sectionId = document.getElementById('lm-section-id').value;
+  const isEditLesson = !!lessonId;
+  const type = document.querySelector('input[name="lm-type"]:checked')?.value || 'video';
+
+  const payload = {
+    title:      document.getElementById('lm-lesson-title').value.trim(),
+    is_preview: document.getElementById('lm-is-preview').checked,
+  };
+  if (!isEditLesson) payload.type = type;
+
+  if (type === 'video' || (!isEditLesson && type === 'video')) {
+    const vu = document.getElementById('lm-video-url').value.trim();
+    const dur = document.getElementById('lm-duration').value;
+    if (vu) payload.video_url = vu;
+    if (dur) payload.duration_seconds = parseInt(dur);
+  }
+  if (type === 'content' || (isEditLesson)) {
+    const cb = document.getElementById('lm-content-body').value.trim();
+    if (cb) payload.content_body = cb;
+  }
+
+  const endpoint = isEditLesson
+    ? `/instructor/lessons/${lessonId}`
+    : `/instructor/sections/${sectionId}/lessons`;
+  const method = isEditLesson ? 'PUT' : 'POST';
+
+  const { ok, data } = await apiFetch(endpoint, { method, body: JSON.stringify(payload) });
+  hideSpinner(); btn.disabled = false;
+
+  if (!ok) { showToast(data.message, 'error'); return; }
+  showToast(isEditLesson ? 'Cập nhật bài học thành công!' : 'Tạo bài học thành công!', 'success');
+  closeLessonModal();
+  loadSections();
+});
+
+// ── Delete lesson ──────────────────────────────────────────────────────────
+async function deleteLesson(id, name) {
+  if (!confirm(`Xóa bài học "${name}"? Không thể hoàn tác.`)) return;
+  showSpinner();
+  const { ok, data } = await apiFetch(`/instructor/lessons/${id}`, { method: 'DELETE' });
+  hideSpinner();
+  if (!ok) { showToast(data.message, 'error'); return; }
+  showToast('Đã xóa bài học', 'success');
+  loadSections();
+}
+
+// ══════════════════════════════════════════════════════
+//  QUESTION MODAL
+// ══════════════════════════════════════════════════════
+function addOptionRow(value = '', isCorrect = false) {
+  const builder = document.getElementById('options-builder');
+  const idx = builder.children.length;
+  const row = document.createElement('div');
+  row.className = 'option-row';
+  row.innerHTML = `
+    <input type="radio" class="opt-radio" name="correct-option" value="${idx}" ${isCorrect ? 'checked' : ''}>
+    <input type="text" class="form-control opt-input" placeholder="Lựa chọn ${idx + 1}" value="${escHtml(value)}" required>
+    <button type="button" class="opt-remove" onclick="this.parentElement.remove(); renumberOptions()" title="Xóa lựa chọn">×</button>
+  `;
+  builder.appendChild(row);
+}
+
+function renumberOptions() {
+  document.querySelectorAll('#options-builder .opt-input').forEach((inp, i) => {
+    inp.placeholder = `Lựa chọn ${i + 1}`;
+  });
+  document.querySelectorAll('#options-builder .opt-radio').forEach((r, i) => r.value = i);
+}
+
+function openAddQuestion(lessonId) {
+  document.getElementById('qm-lesson-id').value   = lessonId;
+  document.getElementById('qm-question-id').value = '';
+  document.getElementById('qm-title').textContent  = '+ Thêm câu hỏi';
+  document.getElementById('qm-submit-btn').textContent = 'Thêm câu hỏi';
+  document.getElementById('qm-question-text').value = '';
+  const builder = document.getElementById('options-builder');
+  builder.innerHTML = '';
+  addOptionRow('', true); addOptionRow();  // 2 lựa chọn mặc định
+  document.getElementById('question-modal').classList.remove('hidden');
+  document.getElementById('qm-question-text').focus();
+}
+
+function openEditQuestion(q) {
+  document.getElementById('qm-lesson-id').value   = q.lesson_id;
+  document.getElementById('qm-question-id').value = q.id;
+  document.getElementById('qm-title').textContent  = '✏️ Sửa câu hỏi';
+  document.getElementById('qm-submit-btn').textContent = 'Cập nhật';
+  document.getElementById('qm-question-text').value = q.question_text || '';
+
+  const builder = document.getElementById('options-builder');
+  builder.innerHTML = '';
+  (q.options || []).forEach((opt, i) => addOptionRow(opt, i === q.correct_index));
+  document.getElementById('question-modal').classList.remove('hidden');
+}
+
+function closeQuestionModal() {
+  document.getElementById('question-modal').classList.add('hidden');
+}
+document.getElementById('question-modal').addEventListener('click', e => { if (e.target === e.currentTarget) closeQuestionModal(); });
+
+document.getElementById('question-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const btn = document.getElementById('qm-submit-btn');
+  btn.disabled = true;
+  showSpinner();
+
+  const lessonId    = document.getElementById('qm-lesson-id').value;
+  const questionId  = document.getElementById('qm-question-id').value;
+  const isEditQ     = !!questionId;
+  const questionText = document.getElementById('qm-question-text').value.trim();
+
+  const optInputs = [...document.querySelectorAll('#options-builder .opt-input')];
+  const options   = optInputs.map(i => i.value.trim()).filter(Boolean);
+
+  const checkedRadio = document.querySelector('#options-builder .opt-radio:checked');
+  const correctIndex = checkedRadio ? parseInt(checkedRadio.value) : 0;
+
+  if (options.length < 2) {
+    hideSpinner(); btn.disabled = false;
+    showToast('Cần ít nhất 2 lựa chọn', 'error'); return;
+  }
+  if (correctIndex < 0 || correctIndex >= options.length) {
+    hideSpinner(); btn.disabled = false;
+    showToast('Vui lòng chọn đáp án đúng', 'error'); return;
+  }
+
+  const payload = { question_text: questionText, options, correct_index: correctIndex };
+  const endpoint = isEditQ
+    ? `/instructor/questions/${questionId}`
+    : `/instructor/lessons/${lessonId}/questions`;
+  const method = isEditQ ? 'PUT' : 'POST';
+
+  const { ok, data } = await apiFetch(endpoint, { method, body: JSON.stringify(payload) });
+  hideSpinner(); btn.disabled = false;
+
+  if (!ok) { showToast(data.message, 'error'); return; }
+  showToast(isEditQ ? 'Cập nhật câu hỏi thành công!' : 'Thêm câu hỏi thành công!', 'success');
+  closeQuestionModal();
+  loadSections();
+});
+
+// ── Delete question ────────────────────────────────────────────────────────
+async function deleteQuestion(id) {
+  if (!confirm('Xóa câu hỏi này?')) return;
+  showSpinner();
+  const { ok, data } = await apiFetch(`/instructor/questions/${id}`, { method: 'DELETE' });
+  hideSpinner();
+  if (!ok) { showToast(data.message, 'error'); return; }
+  showToast('Đã xóa câu hỏi', 'success');
+  loadSections();
+}
+
+// ── Utility ────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
 
 init();
 </script>

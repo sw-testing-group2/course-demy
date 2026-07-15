@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const { calculateCourseProgress } = require('./progress.controller');
 
 // ─── GET /api/enrollments ────────────────────────────────────────────────────
 function getEnrollments(req, res) {
@@ -22,12 +23,13 @@ function getEnrollments(req, res) {
       id:          row.id,
       enrolled_at: row.enrolled_at,
       course: {
-        id:        row.course_id,
-        title:     row.course_title,
-        thumbnail: row.course_thumbnail,
+        id:               row.course_id,
+        title:            row.course_title,
+        thumbnail:        row.course_thumbnail,
         instructor: {
           full_name: row.instructor_name,
         },
+        progress_percent: calculateCourseProgress(req.user.id, row.course_id),
       },
     }));
 

@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Kết quả thanh toán – CourseDemy</title>
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .result-page {
+      min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+      padding: 24px;
+      background: radial-gradient(ellipse at 50% 30%, rgba(99,102,241,0.10) 0%, transparent 60%), var(--bg);
+    }
+    .result-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 48px 40px;
+      text-align: center; max-width: 480px; width: 100%;
+      box-shadow: var(--shadow-lg); animation: fadeInScale .3s ease;
+    }
+    .result-icon { font-size: 4.5rem; margin-bottom: 16px; }
+    .result-title { font-size: 1.8rem; font-weight: 800; margin-bottom: 8px; }
+    .result-sub { color: var(--text-dim); margin-bottom: 28px; font-size: .95rem; }
+    .result-detail {
+      background: var(--bg-2); border: 1px solid var(--border);
+      border-radius: var(--radius-sm); padding: 14px 18px;
+      margin-bottom: 24px; font-size: .88rem; text-align: left;
+    }
+    .result-row { display: flex; justify-content: space-between; margin-bottom: 6px; }
+    .result-row:last-child { margin-bottom: 0; }
+    .polling-dots::after {
+      content: '...';
+      animation: dots 1.2s steps(3) infinite;
+    }
+    @keyframes dots { 0%,100%{content:'.'} 33%{content:'..'} 66%{content:'...'} }
+    @keyframes fadeInScale { from { opacity:0; transform:scale(.96); } to { opacity:1; transform:scale(1); } }
+  </style>
+</head>
+<body>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<div class="result-page">
+  <div class="result-card" id="result-card">
+    <div class="result-icon">⏳</div>
+    <h1 class="result-title">Đang kiểm tra thanh toán</h1>
+    <p class="result-sub">Vui lòng chờ<span class="polling-dots"></span></p>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+const params  = new URLSearchParams(location.search);
+const orderId = params.get('orderId');
+const urlStatus = params.get('status');
+let pollCount = 0;
+const MAX_POLL = 10;
+let pollTimer = null;
+
+async function checkStatus() {
+  if (!orderId || orderId === 'unknown') {
+    renderResult('error', null);
+    return;
+  }
+  const { ok, data } = await apiFetch(`/payments/${orderId}/status`);
+  if (!ok) { renderResult('error', null); return; }
+  const status = data.data?.status;
+  processStatus(status, data.data);
+}
+
+function processStatus(status, orderData) {
+  if (status === 'paid') {
+    renderResult('paid', orderData); return;
+  }
+  if (status === 'failed' || status === 'cancelled') {
+    renderResult('failed', orderData); return;
+  }
+  // pending → poll
+  if (pollCount < MAX_POLL) {
+    pollCount++;
+    pollTimer = setTimeout(checkStatus, 3000);
+    document.querySelector('.result-sub').innerHTML = `Đang chờ xác nhận từ cổng thanh toán<span class="polling-dots"></span>
+      <br><small style="color:var(--text-muted)">(Lần ${pollCount}/${MAX_POLL})</small>`;
+  } else {
+    renderResult('timeout', orderData);
+  }
+}
+
+function renderResult(type, orderData) {
+  if (pollTimer) clearTimeout(pollTimer);
+
+  const configs = {
+    paid: {
+      icon: '🎉', color: 'var(--success)',
+      title: 'Thanh toán thành công!',
+      sub: 'Cảm ơn bạn đã tin tưởng CourseDemy. Chúc bạn học tốt!',
+      actions: `<a href="/my-courses.html" class="btn btn-success btn-full btn-lg">📚 Xem khóa học của tôi</a>
+                <a href="/index.html" class="btn btn-ghost btn-full" style="margin-top:8px">Tiếp tục khám phá</a>`,
+    },
+    failed: {
+      icon: '😔', color: 'var(--danger)',
+      title: 'Thanh toán thất bại',
+      sub: 'Giao dịch của bạn không thành công. Vui lòng thử lại.',
+      actions: `<a href="/checkout.html" class="btn btn-danger btn-full btn-lg">🔄 Thử thanh toán lại</a>
+                <a href="/cart.html" class="btn btn-ghost btn-full" style="margin-top:8px">Xem giỏ hàng</a>`,
+    },
+    timeout: {
+      icon: '⏱', color: 'var(--warning)',
+      title: 'Chờ xác nhận',
+      sub: 'Giao dịch đang xử lý. Bạn có thể kiểm tra lại trong "Khóa học của tôi".',
+      actions: `<a href="/my-courses.html" class="btn btn-warning btn-full btn-lg">📚 Xem khóa học của tôi</a>`,
+    },
+    error: {
+      icon: '⚠️', color: 'var(--text-muted)',
+      title: 'Không tìm thấy đơn hàng',
+      sub: 'Không thể lấy thông tin đơn hàng.',
+      actions: `<a href="/index.html" class="btn btn-outline btn-full btn-lg">Về trang chủ</a>`,
+    },
+  };
+
+  const c = configs[type] || configs.error;
+  const detailHtml = orderData ? `
+    <div class="result-detail">
+      <div class="result-row"><span style="color:var(--text-dim)">Mã đơn hàng</span><span>#${orderData.order_id || orderId}</span></div>
+      ${orderData.total_amount != null ? `<div class="result-row"><span style="color:var(--text-dim)">Số tiền</span><span style="color:var(--primary);font-weight:700">${formatPriceText(orderData.total_amount)}</span></div>` : ''}
+      ${orderData.payment_method ? `<div class="result-row"><span style="color:var(--text-dim)">Phương thức</span><span style="text-transform:uppercase">${orderData.payment_method}</span></div>` : ''}
+    </div>` : '';
+
+  document.getElementById('result-card').innerHTML = `
+    <div class="result-icon">${c.icon}</div>
+    <h1 class="result-title" style="color:${c.color}">${c.title}</h1>
+    <p class="result-sub">${c.sub}</p>
+    ${detailHtml}
+    ${c.actions}`;
+}
+
+// ── Start ─────────────────────────────────────────────────────────────────────
+if (!orderId) {
+  renderResult('error', null);
+} else if (urlStatus === 'paid') {
+  // Xác nhận lại từ API rồi mới render để chắc chắn
+  checkStatus();
+} else if (urlStatus === 'failed') {
+  renderResult('failed', { order_id: orderId });
+} else {
+  // pending hoặc không rõ → bắt đầu poll
+  checkStatus();
+}
+</script>
+</body>
+</html>
