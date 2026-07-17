@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Admin Dashboard – CourseDemy</title>
+  <meta name="description" content="Tổng quan hệ thống CourseDemy dành cho quản trị viên.">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .period-btns { display:flex; gap:6px; flex-wrap:wrap; }
+    .period-btn {
+      padding:6px 14px; border-radius:100px; border:1px solid var(--border-light);
+      background:transparent; color:var(--text-dim); cursor:pointer; font-size:.82rem;
+      font-weight:600; font-family:inherit; transition:all .18s;
+    }
+    .period-btn:hover { border-color:var(--primary); color:var(--primary); }
+    .period-btn.active { background:var(--primary-dark); border-color:var(--primary-dark); color:#fff; }
+    .chart-card {
+      background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius);
+      padding:24px; margin-bottom:28px;
+    }
+    .chart-card-title {
+      font-size:1rem; font-weight:700; margin-bottom:16px;
+      display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;
+    }
+    .chart-wrap { position:relative; height:280px; }
+    .chart-wrap-sm { position:relative; height:260px; }
+    .dashboard-grid {
+      display:grid; grid-template-columns:1fr 320px; gap:28px; align-items:start;
+    }
+    .alert-card {
+      background:var(--bg-card); border:1px solid var(--warning); border-radius:var(--radius);
+      padding:20px 24px; cursor:pointer; transition:all .18s;
+      display:flex; align-items:center; gap:16px; text-decoration:none;
+    }
+    .alert-card:hover { background:rgba(251,191,36,.07); transform:translateY(-2px); }
+    .alert-card-icon { font-size:2rem; }
+    .alert-card-val { font-size:2rem; font-weight:800; color:var(--warning); line-height:1; }
+    .alert-card-label { font-size:.85rem; color:var(--text-dim); margin-top:4px; }
+    .stat-sub { font-size:.75rem; color:var(--text-muted); margin-top:6px; line-height:1.6; }
+    .thumb-sm {
+      width:44px; height:30px; object-fit:cover; border-radius:4px; flex-shrink:0;
+    }
+    .thumb-ph-sm {
+      width:44px; height:30px; border-radius:4px; background:var(--bg-2);
+      display:flex; align-items:center; justify-content:center; font-size:.9rem; flex-shrink:0;
+    }
+    .rank-badge {
+      width:28px; height:28px; border-radius:50%; background:var(--bg-2);
+      display:flex; align-items:center; justify-content:center;
+      font-size:.75rem; font-weight:700; color:var(--text-dim); flex-shrink:0;
+    }
+    .rank-badge.gold   { background:rgba(251,191,36,.2); color:#fbbf24; }
+    .rank-badge.silver { background:rgba(148,163,184,.2); color:#94a3b8; }
+    .rank-badge.bronze { background:rgba(180,120,60,.2);  color:#b47c3c; }
+    @media(max-width:900px){ .dashboard-grid { grid-template-columns:1fr; } }
+    @media(max-width:600px){ .chart-wrap,.chart-wrap-sm { height:200px; } }
+  </style>
+</head>
+<body>
+<nav id="navbar"></nav>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<main class="container section">
+  <div class="page-header">
+    <h1 class="page-title">⚙️ Admin Dashboard</h1>
+    <p class="page-subtitle">Tổng quan hệ thống CourseDemy</p>
+  </div>
+
+  <!-- ── Alert cards ─────────────────────────────────────────── -->
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px;margin-bottom:28px" id="alert-cards">
+    <div class="skeleton-card" style="height:88px"></div>
+    <div class="skeleton-card" style="height:88px"></div>
+  </div>
+
+  <!-- ── Overview Stats ──────────────────────────────────────── -->
+  <div class="stats-grid" id="overview-cards" style="margin-bottom:32px">
+    <div class="skeleton-card stat-card" style="min-height:90px"></div>
+    <div class="skeleton-card stat-card" style="min-height:90px"></div>
+    <div class="skeleton-card stat-card" style="min-height:90px"></div>
+    <div class="skeleton-card stat-card" style="min-height:90px"></div>
+    <div class="skeleton-card stat-card" style="min-height:90px"></div>
+  </div>
+
+  <!-- ── Charts + Pie ────────────────────────────────────────── -->
+  <div class="dashboard-grid">
+    <div>
+      <!-- Revenue Line Chart -->
+      <div class="chart-card">
+        <div class="chart-card-title">
+          <span>📈 Doanh thu hệ thống</span>
+          <div class="period-btns">
+            <button class="period-btn active" id="ap-7days"    onclick="loadRevenue('7days')">7 ngày</button>
+            <button class="period-btn"         id="ap-30days"   onclick="loadRevenue('30days')">30 ngày</button>
+            <button class="period-btn"         id="ap-12months" onclick="loadRevenue('12months')">12 tháng</button>
+          </div>
+        </div>
+        <div class="chart-wrap"><canvas id="revenue-chart"></canvas></div>
+      </div>
+
+      <!-- Top courses table -->
+      <div class="chart-card">
+        <div class="chart-card-title">🏆 Top khóa học bán chạy</div>
+        <div id="top-courses-wrap"><div class="empty-state"><div class="spinner-ring"></div></div></div>
+      </div>
+    </div>
+
+    <!-- Pie chart -->
+    <div>
+      <div class="chart-card" style="margin-bottom:20px">
+        <div class="chart-card-title">👥 Người dùng theo vai trò</div>
+        <div class="chart-wrap-sm"><canvas id="role-pie-chart"></canvas></div>
+      </div>
+
+      <!-- Admin quick links -->
+      <div class="chart-card">
+        <div class="chart-card-title" style="margin-bottom:12px">🔗 Quản lý nhanh</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <a href="/admin-courses.html" class="admin-link-card" style="padding:14px 18px">
+            <span class="admin-link-icon" style="font-size:1.4rem">📋</span>
+            <div><div style="font-size:.9rem">Duyệt khóa học</div></div>
+          </a>
+          <a href="/admin-users.html" class="admin-link-card" style="padding:14px 18px">
+            <span class="admin-link-icon" style="font-size:1.4rem">👥</span>
+            <div><div style="font-size:.9rem">Quản lý người dùng</div></div>
+          </a>
+          <a href="/admin-categories.html" class="admin-link-card" style="padding:14px 18px">
+            <span class="admin-link-icon" style="font-size:1.4rem">📂</span>
+            <div><div style="font-size:.9rem">Danh mục</div></div>
+          </a>
+          <a href="/admin-withdrawals.html" class="admin-link-card" style="padding:14px 18px">
+            <span class="admin-link-icon" style="font-size:1.4rem">💸</span>
+            <div><div style="font-size:.9rem">Phê duyệt rút tiền</div></div>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="js/api.js"></script>
+<script>
+if (!requireAuth('/login.html')) throw 0;
+if (!requireRole('admin', '/index.html')) throw 0;
+renderNavbar('admin-dashboard');
+
+function fmtVND(n) { return Number(n || 0).toLocaleString('vi-VN') + '₫'; }
+
+// ── Overview + Alert Cards ───────────────────────────────────────────────────
+async function loadOverview() {
+  const { ok, data } = await apiFetch('/admin/stats/overview');
+  if (!ok) return;
+  const s = data.data;
+
+  // Alert cards
+  document.getElementById('alert-cards').innerHTML = `
+    <a href="/admin-courses.html" class="alert-card">
+      <div class="alert-card-icon">⏳</div>
+      <div>
+        <div class="alert-card-val">${s.pending_courses ?? 0}</div>
+        <div class="alert-card-label">Khóa học chờ duyệt</div>
+      </div>
+    </a>
+    <a href="/admin-withdrawals.html" class="alert-card" style="border-color:var(--warning)">
+      <div class="alert-card-icon">💸</div>
+      <div>
+        <div class="alert-card-val">${s.pending_withdrawals ?? 0}</div>
+        <div class="alert-card-label">Yêu cầu rút tiền chờ duyệt</div>
+      </div>
+    </a>`;
+
+  // Stat cards
+  document.getElementById('overview-cards').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-icon">👥</div>
+      <div class="stat-value">${s.total_users ?? 0}</div>
+      <div class="stat-label">Tổng người dùng</div>
+      <div class="stat-sub">
+        🎓 ${s.users_by_role?.student ?? 0} học viên<br>
+        📖 ${s.users_by_role?.instructor ?? 0} giảng viên<br>
+        ⚙️ ${s.users_by_role?.admin ?? 0} admin
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">📚</div>
+      <div class="stat-value">${s.total_courses ?? 0}</div>
+      <div class="stat-label">Tổng khóa học</div>
+      <div class="stat-sub">
+        ✅ ${s.courses_by_status?.approved ?? 0} đã duyệt<br>
+        ⏳ ${s.courses_by_status?.pending ?? 0} chờ duyệt<br>
+        ❌ ${s.courses_by_status?.rejected ?? 0} từ chối
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">🛒</div>
+      <div class="stat-value">${s.total_orders ?? 0}</div>
+      <div class="stat-label">Tổng đơn hàng</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">💰</div>
+      <div class="stat-value" style="font-size:1.4rem;color:var(--primary)">${fmtVND(s.total_revenue)}</div>
+      <div class="stat-label">Tổng doanh thu hệ thống</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">📋</div>
+      <div class="stat-value">${s.total_enrollments ?? 0}</div>
+      <div class="stat-label">Lượt đăng ký khóa học</div>
+    </div>`;
+
+  // Pie chart for user roles
+  const roles = s.users_by_role || {};
+  renderPieChart(roles);
+}
+
+// ── Role Pie Chart ───────────────────────────────────────────────────────────
+function renderPieChart(roles) {
+  const ctx = document.getElementById('role-pie-chart').getContext('2d');
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['Học viên', 'Giảng viên', 'Admin'],
+      datasets: [{
+        data: [roles.student ?? 0, roles.instructor ?? 0, roles.admin ?? 0],
+        backgroundColor: ['rgba(129,140,248,0.8)', 'rgba(52,211,153,0.8)', 'rgba(251,191,36,0.8)'],
+        borderColor: ['#818cf8', '#34d399', '#fbbf24'],
+        borderWidth: 2,
+        hoverOffset: 8,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: { color: '#94a3b8', font: { size: 12 }, padding: 16, boxWidth: 14 },
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.label}: ${ctx.parsed} người`,
+          },
+        },
+      },
+      cutout: '62%',
+    },
+  });
+}
+
+// ── Revenue Line Chart ───────────────────────────────────────────────────────
+let revenueChart = null;
+
+async function loadRevenue(period = '7days') {
+  ['7days','30days','12months'].forEach(p => {
+    document.getElementById(`ap-${p}`)?.classList.toggle('active', p === period);
+  });
+  const { ok, data } = await apiFetch(`/admin/stats/revenue?period=${period}`);
+  if (!ok) return;
+  const rows = data.data || [];
+  const labels = rows.map(r => r.label || r.period || r.date || '');
+  const values = rows.map(r => Number(r.revenue ?? r.total ?? 0));
+
+  const ctx = document.getElementById('revenue-chart').getContext('2d');
+  if (revenueChart) revenueChart.destroy();
+  revenueChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Doanh thu (₫)',
+        data: values,
+        borderColor: '#34d399',
+        backgroundColor: 'rgba(52,211,153,0.1)',
+        borderWidth: 2.5,
+        pointRadius: 4,
+        pointBackgroundColor: '#34d399',
+        fill: true,
+        tension: 0.35,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: { label: ctx => ' ' + Number(ctx.parsed.y).toLocaleString('vi-VN') + '₫' },
+        },
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: { color: '#64748b', font: { size: 11 } },
+        },
+        y: {
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: {
+            color: '#64748b', font: { size: 11 },
+            callback: v => Number(v).toLocaleString('vi-VN') + '₫',
+          },
+          beginAtZero: true,
+        },
+      },
+    },
+  });
+}
+
+// ── Top Courses Table ────────────────────────────────────────────────────────
+async function loadTopCourses() {
+  const { ok, data } = await apiFetch('/admin/stats/top-courses');
+  const el = document.getElementById('top-courses-wrap');
+  if (!ok) { el.innerHTML = `<p style="color:var(--danger)">${data.message || 'Lỗi'}</p>`; return; }
+  const list = data.data || [];
+  if (!list.length) {
+    el.innerHTML = `<div class="empty-state" style="padding:24px 0"><div class="empty-icon">📭</div><p class="empty-text">Chưa có dữ liệu.</p></div>`;
+    return;
+  }
+  const rankClass = i => i === 0 ? 'gold' : i === 1 ? 'silver' : i === 2 ? 'bronze' : '';
+  el.innerHTML = `<div class="table-wrap"><table>
+    <thead><tr>
+      <th>#</th><th>Khóa học</th><th>Giảng viên</th><th>Học viên</th><th>Doanh thu</th><th>⭐</th>
+    </tr></thead>
+    <tbody>
+      ${list.map((c, i) => {
+        const thumb = c.thumbnail
+          ? `<img src="${c.thumbnail}" class="thumb-sm" alt="">`
+          : `<div class="thumb-ph-sm">📚</div>`;
+        return `<tr>
+          <td><div class="rank-badge ${rankClass(i)}">${i+1}</div></td>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px">
+              ${thumb}
+              <span style="font-weight:600;font-size:.85rem">${c.title}</span>
+            </div>
+          </td>
+          <td style="font-size:.82rem;color:var(--text-dim)">${c.instructor?.full_name ?? c.instructor_name ?? '—'}</td>
+          <td style="font-weight:600">${c.students ?? c.enrollments_count ?? 0}</td>
+          <td style="font-weight:700;color:var(--primary)">${fmtVND(c.revenue)}</td>
+          <td style="color:var(--warning)">${c.avg_rating ? Number(c.avg_rating).toFixed(1) : '—'}</td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table></div>`;
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+(async () => {
+  await Promise.all([loadOverview(), loadRevenue('7days'), loadTopCourses()]);
+})();
+</script>
+</body>
+</html>

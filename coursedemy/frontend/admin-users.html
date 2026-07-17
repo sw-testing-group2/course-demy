@@ -3,115 +3,351 @@
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Quản lý người dùng – Admin CourseDemy</title>
+  <meta name="description" content="Quản lý danh sách người dùng, đổi vai trò và khóa/mở khóa tài khoản.">
   <link rel="stylesheet" href="css/style.css">
+  <style>
+    .user-avatar-sm {
+      width:36px; height:36px; border-radius:50%; flex-shrink:0;
+      background:linear-gradient(135deg,var(--primary-dark),#a78bfa);
+      display:flex; align-items:center; justify-content:center;
+      font-weight:700; font-size:.85rem; color:#fff;
+    }
+    .toggle-switch {
+      position:relative; display:inline-block; width:42px; height:24px; cursor:pointer;
+    }
+    .toggle-switch input { opacity:0; width:0; height:0; }
+    .toggle-slider {
+      position:absolute; inset:0; border-radius:24px; background:var(--border);
+      transition:background .2s;
+    }
+    .toggle-slider:before {
+      content:''; position:absolute; left:3px; top:3px;
+      width:18px; height:18px; border-radius:50%; background:#fff;
+      transition:transform .2s; box-shadow:0 1px 4px rgba(0,0,0,.3);
+    }
+    input:checked + .toggle-slider { background:var(--success); }
+    input:checked + .toggle-slider:before { transform:translateX(18px); }
+    .role-modal-overlay {
+      position:fixed; inset:0; background:rgba(0,0,0,.72); display:flex;
+      align-items:center; justify-content:center; z-index:2000;
+      padding:24px; backdrop-filter:blur(4px); animation:fadeIn .2s ease;
+    }
+    .role-modal-overlay.hidden { display:none; }
+    .role-modal-box {
+      background:var(--bg-card); border:1px solid var(--border);
+      border-radius:var(--radius-lg); padding:32px; width:100%; max-width:440px;
+      box-shadow:var(--shadow-lg); animation:fadeInScale .2s ease;
+    }
+    .role-modal-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; }
+    .role-modal-title { font-size:1.1rem; font-weight:700; }
+    .role-radio-group { display:flex; flex-direction:column; gap:10px; margin:16px 0 20px; }
+    .role-radio-label {
+      display:flex; align-items:center; gap:12px; padding:12px 16px;
+      border:1px solid var(--border); border-radius:var(--radius-sm); cursor:pointer;
+      transition:all .15s;
+    }
+    .role-radio-label:has(input:checked) { border-color:var(--primary); background:var(--primary-glow); }
+    .role-radio-label input { accent-color:var(--primary); width:16px; height:16px; }
+    .role-radio-icon { font-size:1.3rem; }
+    .role-error {
+      background:var(--danger-bg); border:1px solid var(--danger); color:var(--danger);
+      border-radius:var(--radius-sm); padding:12px 14px; font-size:.88rem;
+      margin-top:12px; display:none; line-height:1.5;
+    }
+    .pagination-wrap { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:24px; }
+  </style>
 </head>
 <body>
 <nav id="navbar"></nav>
 <div id="toast-container"></div>
 <div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
 
+<!-- Role Change Modal -->
+<div class="role-modal-overlay hidden" id="role-modal">
+  <div class="role-modal-box">
+    <div class="role-modal-header">
+      <div class="role-modal-title">🔄 Đổi vai trò người dùng</div>
+      <button class="modal-close" onclick="closeRoleModal()">✕</button>
+    </div>
+    <div id="modal-user-info" style="font-size:.9rem;color:var(--text-dim);margin-bottom:4px"></div>
+    <div class="role-radio-group" id="role-radio-group">
+      <label class="role-radio-label">
+        <input type="radio" name="new-role" value="student" id="r-student">
+        <span class="role-radio-icon">🎓</span>
+        <div>
+          <div style="font-weight:600">Học viên</div>
+          <div style="font-size:.78rem;color:var(--text-muted)">Có thể mua và học khóa học</div>
+        </div>
+      </label>
+      <label class="role-radio-label">
+        <input type="radio" name="new-role" value="instructor" id="r-instructor">
+        <span class="role-radio-icon">📖</span>
+        <div>
+          <div style="font-weight:600">Giảng viên</div>
+          <div style="font-size:.78rem;color:var(--text-muted)">Có thể tạo và bán khóa học</div>
+        </div>
+      </label>
+    </div>
+    <div class="role-error" id="role-error"></div>
+    <div style="display:flex;gap:10px;margin-top:8px">
+      <button class="btn btn-primary" id="btn-confirm-role" onclick="confirmRoleChange()">✅ Xác nhận đổi vai trò</button>
+      <button class="btn btn-ghost" onclick="closeRoleModal()">Hủy</button>
+    </div>
+  </div>
+</div>
+
 <main class="container section">
-  <div class="section-header">
+  <div class="section-header" style="margin-bottom:24px">
     <div>
       <h1 class="page-title">👥 Quản lý người dùng</h1>
       <p class="page-subtitle" id="subtitle">Đang tải...</p>
     </div>
-    <a href="/admin.html" class="btn btn-outline">← Dashboard</a>
+    <a href="/admin-dashboard.html" class="btn btn-outline">← Dashboard</a>
   </div>
 
-  <div class="filter-bar">
-    <select id="role-filter" class="form-control" style="max-width:180px">
+  <!-- Filter bar -->
+  <div class="filter-bar" style="padding:0 0 20px">
+    <div class="search-wrap" style="flex:1;min-width:200px">
+      <span class="search-icon">🔍</span>
+      <input type="text" class="form-control" id="search-input"
+        placeholder="Tìm theo tên hoặc email..."
+        oninput="onSearchInput()" style="padding-left:44px">
+    </div>
+    <select class="form-control filter-select" id="role-filter" onchange="loadUsers(1)">
       <option value="">Tất cả vai trò</option>
-      <option value="student">Học viên</option>
-      <option value="instructor">Giảng viên</option>
-      <option value="admin">Admin</option>
+      <option value="student">🎓 Học viên</option>
+      <option value="instructor">📖 Giảng viên</option>
+      <option value="admin">⚙️ Admin</option>
     </select>
-    <select id="status-filter" class="form-control" style="max-width:180px">
-      <option value="">Tất cả trạng thái</option>
-      <option value="active">Hoạt động</option>
-      <option value="locked">Đã khóa</option>
-    </select>
-    <button class="btn btn-primary" onclick="loadUsers()">Lọc</button>
-    <button class="btn btn-outline" onclick="resetFilters()">Xóa lọc</button>
+    <button class="btn btn-outline btn-sm" onclick="resetFilters()">✕ Xóa lọc</button>
   </div>
 
-  <div id="content"><div class="empty-state"><div class="spinner-ring"></div></div></div>
+  <!-- Table -->
+  <div id="content">
+    <div class="empty-state"><div class="spinner-ring"></div></div>
+  </div>
+
+  <!-- Pagination -->
+  <div class="pagination-wrap" id="pagination"></div>
 </main>
 
 <script src="js/api.js"></script>
 <script>
-renderNavbar('admin');
 if (!requireAuth('/login.html')) throw 0;
 if (!requireRole('admin', '/index.html')) throw 0;
+renderNavbar('admin-users');
 
 const currentAdmin = getUser();
 
-async function loadUsers() {
-  showSpinner();
+// ── State ────────────────────────────────────────────────────────────────────
+let currentPage = 1, totalPages = 1;
+let searchTimeout = null;
+let pendingUserId = null;
+let pendingUserRole = null;
+
+// ── Load users ───────────────────────────────────────────────────────────────
+async function loadUsers(page = 1) {
+  currentPage = page;
+  const search = document.getElementById('search-input').value.trim();
   const role   = document.getElementById('role-filter').value;
-  const status = document.getElementById('status-filter').value;
-  let qs = '?';
-  if (role)   qs += `role=${role}&`;
-  if (status) qs += `status=${status}&`;
+
+  let qs = `?page=${page}&limit=20`;
+  if (search) qs += `&search=${encodeURIComponent(search)}`;
+  if (role)   qs += `&role=${role}`;
+
+  const el = document.getElementById('content');
+  el.innerHTML = `<div class="empty-state" style="padding:40px 0"><div class="spinner-ring"></div></div>`;
+  document.getElementById('pagination').innerHTML = '';
 
   const { ok, data } = await apiFetch(`/admin/users${qs}`);
-  hideSpinner();
-  const el = document.getElementById('content');
-  if (!ok) { el.innerHTML = `<p style="color:var(--danger)">${data.message}</p>`; return; }
-
-  const users = data.data;
-  document.getElementById('subtitle').textContent = `${users.length} người dùng`;
-
-  if (!users.length) {
-    el.innerHTML = `<div class="empty-state"><div class="empty-icon">👥</div><p class="empty-text">Không tìm thấy người dùng</p></div>`;
+  if (!ok) {
+    el.innerHTML = `<p style="color:var(--danger)">${data.message || 'Lỗi tải danh sách'}</p>`;
     return;
   }
 
-  el.innerHTML = `<div class="table-wrap">
-    <table>
-      <thead><tr><th>Họ và tên</th><th>Email</th><th>Vai trò</th><th>Trạng thái</th><th>Ngày tạo</th><th>Thao tác</th></tr></thead>
-      <tbody>
-        ${users.map(u => {
-          const isAdmin = u.role === 'admin';
-          const isSelf  = u.id === currentAdmin.id;
-          return `<tr id="user-row-${u.id}">
-            <td><strong>${u.full_name}</strong>${isSelf ? ' <span class="badge badge-info" style="font-size:.7rem">Bạn</span>' : ''}</td>
-            <td style="color:var(--text-dim)">${u.email}</td>
-            <td>${statusBadge(u.role)}</td>
-            <td>${statusBadge(u.status)}</td>
-            <td style="font-size:.82rem;color:var(--text-dim)">${formatDate(u.created_at)}</td>
-            <td>
-              ${!isAdmin && !isSelf ? `
-                <button class="btn btn-sm ${u.status==='active'?'btn-outline-danger':'btn-success'}"
-                  onclick="toggleLock(${u.id},'${u.status}')">
-                  ${u.status==='active' ? '🔒 Khóa' : '🔓 Mở khóa'}
-                </button>` : `<span style="color:var(--text-muted);font-size:.82rem">—</span>`}
-            </td>
-          </tr>`;
-        }).join('')}
-      </tbody>
-    </table>
-  </div>`;
+  const users     = data.data?.users ?? data.data ?? [];
+  const total     = data.data?.total ?? users.length;
+  const tp        = data.data?.totalPages ?? 1;
+  totalPages      = tp;
+
+  document.getElementById('subtitle').textContent =
+    `${total} người dùng${search ? ` · tìm kiếm: "${search}"` : ''}`;
+
+  if (!users.length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">👥</div>
+      <p class="empty-text">Không tìm thấy người dùng phù hợp.</p></div>`;
+    return;
+  }
+
+  const roleLabel = { student:'🎓 Học viên', instructor:'📖 Giảng viên', admin:'⚙️ Admin' };
+  const roleCls   = { student:'badge-info', instructor:'badge-primary', admin:'badge-warning' };
+
+  el.innerHTML = `<div class="table-wrap"><table>
+    <thead><tr>
+      <th>Người dùng</th>
+      <th>Email</th>
+      <th>Vai trò</th>
+      <th>Trạng thái</th>
+      <th>Ngày tạo</th>
+      <th>Thao tác</th>
+    </tr></thead>
+    <tbody>
+      ${users.map(u => {
+        const isAdmin = u.role === 'admin';
+        const isSelf  = u.id === currentAdmin.id;
+        const active  = u.is_active !== false && u.status !== 'locked';
+
+        return `<tr id="user-row-${u.id}">
+          <td>
+            <div style="display:flex;align-items:center;gap:10px">
+              <div class="user-avatar-sm">${(u.full_name || '?').charAt(0).toUpperCase()}</div>
+              <div>
+                <div style="font-weight:600;font-size:.9rem">${escHtml(u.full_name)}</div>
+                ${isSelf ? '<span class="badge badge-info" style="font-size:.68rem">Bạn</span>' : ''}
+              </div>
+            </div>
+          </td>
+          <td style="color:var(--text-dim);font-size:.85rem">${escHtml(u.email)}</td>
+          <td><span class="badge ${roleCls[u.role] || 'badge-info'}">${roleLabel[u.role] || u.role}</span></td>
+          <td>
+            ${!isSelf ? `<label class="toggle-switch" title="${active ? 'Đang hoạt động – click để khóa' : 'Đã khóa – click để mở khóa'}">
+              <input type="checkbox" ${active ? 'checked' : ''} onchange="toggleStatus(${u.id}, this)">
+              <span class="toggle-slider"></span>
+            </label>` : `<span style="font-size:.82rem;color:var(--text-muted)">—</span>`}
+          </td>
+          <td style="font-size:.82rem;color:var(--text-dim)">${formatDate(u.created_at)}</td>
+          <td>
+            ${!isAdmin && !isSelf
+              ? `<button class="btn btn-sm btn-outline" onclick="openRoleModal(${u.id},'${escHtml(u.full_name)}','${u.role}')">
+                  🔄 Đổi vai trò
+                </button>`
+              : `<span style="font-size:.78rem;color:var(--text-muted)">—</span>`}
+          </td>
+        </tr>`;
+      }).join('')}
+    </tbody>
+  </table></div>`;
+
+  renderPagination();
 }
 
-async function toggleLock(id, currentStatus) {
-  const action = currentStatus === 'active' ? 'Khóa' : 'Mở khóa';
-  if (!confirm(`${action} tài khoản này?`)) return;
-  showSpinner();
-  const { ok, data } = await apiFetch(`/admin/users/${id}/lock`, { method: 'PUT' });
-  hideSpinner();
-  if (!ok) { showToast(data.message, 'error'); return; }
-  showToast(data.message, 'success');
-  loadUsers();
+// ── Pagination ───────────────────────────────────────────────────────────────
+function renderPagination() {
+  const el = document.getElementById('pagination');
+  if (totalPages <= 1) { el.innerHTML = ''; return; }
+  let html = `<button class="btn btn-outline btn-sm" onclick="loadUsers(${currentPage-1})" ${currentPage===1?'disabled':''}>← Trước</button>`;
+  const start = Math.max(1, currentPage - 2);
+  const end   = Math.min(totalPages, currentPage + 2);
+  for (let i = start; i <= end; i++) {
+    html += `<button class="btn btn-sm ${i===currentPage?'btn-primary':'btn-outline'}" onclick="loadUsers(${i})">${i}</button>`;
+  }
+  html += `<button class="btn btn-outline btn-sm" onclick="loadUsers(${currentPage+1})" ${currentPage===totalPages?'disabled':''}>Sau →</button>`;
+  html += `<span class="page-info" style="font-size:.8rem">Trang ${currentPage}/${totalPages}</span>`;
+  el.innerHTML = html;
+}
+
+// ── Toggle status ─────────────────────────────────────────────────────────────
+async function toggleStatus(userId, checkbox) {
+  const newActive = checkbox.checked;
+  checkbox.disabled = true;
+
+  const { ok, data } = await apiFetch(`/admin/users/${userId}/status`, {
+    method: 'PUT',
+    body: JSON.stringify({ is_active: newActive }),
+  });
+
+  checkbox.disabled = false;
+  if (!ok) {
+    checkbox.checked = !newActive; // revert
+    showToast(data.message || 'Cập nhật thất bại', 'error');
+    return;
+  }
+  showToast(newActive ? 'Đã mở khóa tài khoản ✅' : 'Đã khóa tài khoản 🔒', 'success');
+}
+
+// ── Role modal ────────────────────────────────────────────────────────────────
+function openRoleModal(userId, name, currentRole) {
+  pendingUserId   = userId;
+  pendingUserRole = currentRole;
+
+  document.getElementById('modal-user-info').textContent = `Người dùng: ${name} · Vai trò hiện tại: ${currentRole === 'student' ? 'Học viên' : 'Giảng viên'}`;
+  document.getElementById('role-error').style.display = 'none';
+  document.getElementById('role-error').textContent = '';
+
+  // Pre-select current role
+  const target = currentRole === 'student' ? 'instructor' : 'student';
+  const radio = document.getElementById(`r-${target}`);
+  if (radio) radio.checked = true;
+
+  document.getElementById('role-modal').classList.remove('hidden');
+}
+
+function closeRoleModal() {
+  document.getElementById('role-modal').classList.add('hidden');
+  pendingUserId = null;
+}
+
+async function confirmRoleChange() {
+  if (!pendingUserId) return;
+  const newRole = document.querySelector('input[name="new-role"]:checked')?.value;
+  if (!newRole) { showToast('Vui lòng chọn vai trò mới', 'error'); return; }
+  if (newRole === pendingUserRole) {
+    showToast('Vai trò mới phải khác vai trò hiện tại', 'error'); return;
+  }
+
+  const btn = document.getElementById('btn-confirm-role');
+  const errEl = document.getElementById('role-error');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-sm"></span> Đang xử lý...';
+  errEl.style.display = 'none';
+
+  const { ok, status, data } = await apiFetch(`/admin/users/${pendingUserId}/role`, {
+    method: 'PUT',
+    body: JSON.stringify({ role: newRole }),
+  });
+
+  btn.disabled = false;
+  btn.textContent = '✅ Xác nhận đổi vai trò';
+
+  if (!ok) {
+    if (status === 409) {
+      errEl.textContent = '⚠️ ' + (data.message || 'Giảng viên đang có khóa học đã duyệt. Không thể đổi vai trò.');
+    } else {
+      errEl.textContent = data.message || 'Đổi vai trò thất bại';
+    }
+    errEl.style.display = 'block';
+    return;
+  }
+
+  showToast('Đã đổi vai trò thành công ✅', 'success');
+  closeRoleModal();
+  loadUsers(currentPage);
+}
+
+// Close modal on overlay click / Escape
+document.getElementById('role-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeRoleModal();
+});
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeRoleModal(); });
+
+// ── Search debounce ───────────────────────────────────────────────────────────
+function onSearchInput() {
+  clearTimeout(searchTimeout);
+  searchTimeout = setTimeout(() => loadUsers(1), 400);
 }
 
 function resetFilters() {
+  document.getElementById('search-input').value = '';
   document.getElementById('role-filter').value = '';
-  document.getElementById('status-filter').value = '';
-  loadUsers();
+  loadUsers(1);
 }
 
-loadUsers();
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadUsers(1);
 </script>
 </body>
 </html>

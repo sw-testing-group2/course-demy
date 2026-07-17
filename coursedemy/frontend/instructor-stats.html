@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Thống kê doanh thu – CourseDemy</title>
+  <meta name="description" content="Thống kê doanh thu và hiệu quả khóa học của giảng viên trên CourseDemy.">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .period-btns { display:flex; gap:6px; flex-wrap:wrap; }
+    .period-btn {
+      padding:6px 14px; border-radius:100px; border:1px solid var(--border-light);
+      background:transparent; color:var(--text-dim); cursor:pointer; font-size:.82rem;
+      font-weight:600; font-family:inherit; transition:all .18s;
+    }
+    .period-btn:hover { border-color:var(--primary); color:var(--primary); }
+    .period-btn.active { background:var(--primary-dark); border-color:var(--primary-dark); color:#fff; }
+    .chart-card {
+      background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius);
+      padding:24px; margin-bottom:28px;
+    }
+    .chart-card-title {
+      font-size:1rem; font-weight:700; margin-bottom:16px;
+      display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;
+    }
+    .chart-wrap { position:relative; height:280px; }
+    .stat-detail { font-size:.78rem; color:var(--text-muted); margin-top:4px; }
+    .sortable-th { cursor:pointer; user-select:none; }
+    .sortable-th:hover { color:var(--primary); }
+    .sort-icon { margin-left:4px; opacity:.5; font-size:.8em; }
+    .sort-icon.active { opacity:1; color:var(--primary); }
+    .thumb-sm {
+      width:48px; height:32px; object-fit:cover; border-radius:4px;
+      background:var(--bg-2); flex-shrink:0;
+    }
+    .thumb-ph-sm {
+      width:48px; height:32px; border-radius:4px; background:var(--bg-2);
+      display:flex; align-items:center; justify-content:center; font-size:1.1rem;
+    }
+    @media(max-width:600px){
+      .chart-wrap { height:200px; }
+      .learn-layout { grid-template-columns:1fr; }
+    }
+  </style>
+</head>
+<body>
+<nav id="navbar"></nav>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<main class="container section">
+  <div class="section-header" style="margin-bottom:28px">
+    <div>
+      <h1 class="page-title">📊 Thống kê doanh thu</h1>
+      <p class="page-subtitle">Theo dõi hiệu quả giảng dạy và doanh thu của bạn</p>
+    </div>
+    <a href="/instructor-wallet.html" class="btn btn-primary">💰 Yêu cầu rút tiền</a>
+  </div>
+
+  <!-- ── Overview Cards ──────────────────────────────────────── -->
+  <div class="stats-grid" id="overview-cards" style="margin-bottom:32px">
+    <div class="skeleton-card stat-card"><div class="skeleton skeleton-line medium" style="height:32px"></div><div class="skeleton skeleton-line short thin" style="margin-top:8px"></div></div>
+    <div class="skeleton-card stat-card"><div class="skeleton skeleton-line medium" style="height:32px"></div><div class="skeleton skeleton-line short thin" style="margin-top:8px"></div></div>
+    <div class="skeleton-card stat-card"><div class="skeleton skeleton-line medium" style="height:32px"></div><div class="skeleton skeleton-line short thin" style="margin-top:8px"></div></div>
+    <div class="skeleton-card stat-card"><div class="skeleton skeleton-line medium" style="height:32px"></div><div class="skeleton skeleton-line short thin" style="margin-top:8px"></div></div>
+    <div class="skeleton-card stat-card"><div class="skeleton skeleton-line medium" style="height:32px"></div><div class="skeleton skeleton-line short thin" style="margin-top:8px"></div></div>
+  </div>
+
+  <!-- ── Revenue Chart ───────────────────────────────────────── -->
+  <div class="chart-card">
+    <div class="chart-card-title">
+      <span>📈 Doanh thu theo thời gian</span>
+      <div class="period-btns">
+        <button class="period-btn active" id="p-7days" onclick="loadRevenue('7days')">7 ngày</button>
+        <button class="period-btn" id="p-30days" onclick="loadRevenue('30days')">30 ngày</button>
+        <button class="period-btn" id="p-12months" onclick="loadRevenue('12months')">12 tháng</button>
+      </div>
+    </div>
+    <div class="chart-wrap">
+      <canvas id="revenue-chart"></canvas>
+    </div>
+  </div>
+
+  <!-- ── Course Performance Table ───────────────────────────── -->
+  <div class="chart-card">
+    <div class="chart-card-title">📚 Hiệu quả từng khóa học</div>
+    <div id="courses-table-wrap">
+      <div class="empty-state"><div class="spinner-ring"></div></div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="js/api.js"></script>
+<script>
+if (!requireAuth('/login.html')) throw 0;
+if (!requireRole('instructor', '/index.html')) throw 0;
+renderNavbar('instructor-stats');
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function fmtVND(n) {
+  return Number(n || 0).toLocaleString('vi-VN') + '₫';
+}
+function fmtStar(v) {
+  return v ? Number(v).toFixed(1) + ' ★' : '—';
+}
+
+// ── Overview Cards ───────────────────────────────────────────────────────────
+async function loadOverview() {
+  const { ok, data } = await apiFetch('/instructor/stats/overview');
+  const el = document.getElementById('overview-cards');
+  if (!ok) {
+    el.innerHTML = `<p style="color:var(--danger)">${data.message || 'Lỗi tải dữ liệu'}</p>`;
+    return;
+  }
+  const s = data.data;
+  el.innerHTML = `
+    <div class="stat-card">
+      <div class="stat-icon">💰</div>
+      <div class="stat-value">${fmtVND(s.total_revenue)}</div>
+      <div class="stat-label">Tổng doanh thu</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">👥</div>
+      <div class="stat-value">${s.total_students ?? 0}</div>
+      <div class="stat-label">Tổng học viên</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">📚</div>
+      <div class="stat-value">${s.total_courses ?? 0}</div>
+      <div class="stat-label">Tổng khóa học</div>
+      <div class="stat-detail">
+        ✅ ${s.approved_courses ?? 0} đã duyệt
+        &nbsp;·&nbsp;
+        ⏳ ${s.pending_courses ?? 0} chờ duyệt
+      </div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">⭐</div>
+      <div class="stat-value" style="color:var(--warning)">${fmtStar(s.avg_rating)}</div>
+      <div class="stat-label">Đánh giá trung bình</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">🏦</div>
+      <div class="stat-value" style="color:var(--success)">${fmtVND(s.wallet_balance)}</div>
+      <div class="stat-label">Số dư ví</div>
+    </div>`;
+}
+
+// ── Revenue Chart ────────────────────────────────────────────────────────────
+let revenueChart = null;
+let currentPeriod = '7days';
+
+async function loadRevenue(period = '7days') {
+  currentPeriod = period;
+  // Update active button
+  ['7days','30days','12months'].forEach(p => {
+    document.getElementById(`p-${p}`)?.classList.toggle('active', p === period);
+  });
+
+  const { ok, data } = await apiFetch(`/instructor/stats/revenue?period=${period}`);
+  if (!ok) { showToast('Lỗi tải biểu đồ doanh thu', 'error'); return; }
+
+  const rows = data.data || [];
+  const labels = rows.map(r => r.label || r.period || r.date || '');
+  const values = rows.map(r => Number(r.revenue ?? r.total ?? 0));
+
+  const ctx = document.getElementById('revenue-chart').getContext('2d');
+  if (revenueChart) revenueChart.destroy();
+  revenueChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Doanh thu (₫)',
+        data: values,
+        borderColor: '#818cf8',
+        backgroundColor: 'rgba(129,140,248,0.12)',
+        borderWidth: 2.5,
+        pointRadius: 4,
+        pointBackgroundColor: '#818cf8',
+        fill: true,
+        tension: 0.35,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => ' ' + Number(ctx.parsed.y).toLocaleString('vi-VN') + '₫',
+          },
+        },
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: { color: '#64748b', font: { size: 11 } },
+        },
+        y: {
+          grid: { color: 'rgba(255,255,255,0.05)' },
+          ticks: {
+            color: '#64748b',
+            font: { size: 11 },
+            callback: v => Number(v).toLocaleString('vi-VN') + '₫',
+          },
+          beginAtZero: true,
+        },
+      },
+    },
+  });
+}
+
+// ── Course Performance Table ─────────────────────────────────────────────────
+let coursesData = [];
+let sortCol = 'revenue';
+let sortDir = -1; // -1 desc, 1 asc
+
+async function loadCoursesTable() {
+  const { ok, data } = await apiFetch('/instructor/stats/courses');
+  if (!ok) {
+    document.getElementById('courses-table-wrap').innerHTML =
+      `<p style="color:var(--danger)">${data.message || 'Lỗi tải dữ liệu'}</p>`;
+    return;
+  }
+  coursesData = data.data || [];
+  renderCoursesTable();
+}
+
+function renderCoursesTable() {
+  const sorted = [...coursesData].sort((a, b) => {
+    const va = Number(a[sortCol] ?? 0);
+    const vb = Number(b[sortCol] ?? 0);
+    return (va - vb) * sortDir;
+  });
+
+  if (!sorted.length) {
+    document.getElementById('courses-table-wrap').innerHTML =
+      `<div class="empty-state"><div class="empty-icon">📚</div><p class="empty-text">Chưa có dữ liệu khóa học.</p></div>`;
+    return;
+  }
+
+  const sortIcon = (col) => {
+    if (col !== sortCol) return `<span class="sort-icon">⇅</span>`;
+    return `<span class="sort-icon active">${sortDir === -1 ? '↓' : '↑'}</span>`;
+  };
+
+  const statusMap = {
+    approved: { cls: 'badge-success', label: '✅ Đã duyệt' },
+    pending:  { cls: 'badge-warning', label: '⏳ Chờ duyệt' },
+    rejected: { cls: 'badge-danger',  label: '❌ Từ chối' },
+  };
+
+  document.getElementById('courses-table-wrap').innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Khóa học</th>
+          <th>Trạng thái</th>
+          <th class="sortable-th" onclick="sortTable('students')">
+            Học viên ${sortIcon('students')}
+          </th>
+          <th class="sortable-th" onclick="sortTable('revenue')">
+            Doanh thu ${sortIcon('revenue')}
+          </th>
+          <th>Đánh giá</th>
+        </tr></thead>
+        <tbody>
+          ${sorted.map(c => {
+            const st = statusMap[c.status] || { cls: 'badge-info', label: c.status };
+            const thumb = c.thumbnail
+              ? `<img src="${c.thumbnail}" class="thumb-sm" alt="">`
+              : `<div class="thumb-ph-sm">📚</div>`;
+            return `<tr>
+              <td>
+                <div style="display:flex;align-items:center;gap:10px">
+                  ${thumb}
+                  <div>
+                    <div style="font-weight:600;font-size:.88rem">${c.title}</div>
+                    <div style="font-size:.75rem;color:var(--text-muted)">${c.category || ''}</div>
+                  </div>
+                </div>
+              </td>
+              <td><span class="badge ${st.cls}">${st.label}</span></td>
+              <td style="font-weight:600">${c.students ?? 0}</td>
+              <td style="font-weight:700;color:var(--primary)">${fmtVND(c.revenue)}</td>
+              <td style="color:var(--warning)">${fmtStar(c.avg_rating)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+function sortTable(col) {
+  if (sortCol === col) sortDir = -sortDir;
+  else { sortCol = col; sortDir = -1; }
+  renderCoursesTable();
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+(async () => {
+  await Promise.all([loadOverview(), loadRevenue('7days'), loadCoursesTable()]);
+})();
+</script>
+</body>
+</html>

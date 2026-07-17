@@ -1,0 +1,387 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Hỏi &amp; Đáp – CourseDemy Giảng viên</title>
+  <meta name="description" content="Hộp thư Hỏi & Đáp dành cho giảng viên – tổng hợp câu hỏi từ tất cả khóa học.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav id="navbar"></nav>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<!-- Q&A Detail Modal -->
+<div class="qna-modal-overlay hidden" id="qna-modal">
+  <div class="qna-modal-box">
+    <div class="qna-modal-header">
+      <div>
+        <div style="font-size:.78rem;color:var(--text-muted);margin-bottom:6px" id="modal-meta">—</div>
+        <div class="qna-modal-title" id="modal-q-title">—</div>
+      </div>
+      <button class="modal-close" onclick="closeModal()" title="Đóng">✕</button>
+    </div>
+
+    <!-- Question body -->
+    <div style="color:var(--text-dim);font-size:.92rem;line-height:1.7;white-space:pre-wrap;margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--border)" id="modal-q-body"></div>
+
+    <!-- Answers -->
+    <div id="modal-answers" style="max-height:340px;overflow-y:auto;padding-right:4px"></div>
+
+    <!-- Resolve + Reply -->
+    <div id="modal-resolve-wrap" style="margin-top:16px;display:none">
+      <button class="btn btn-sm btn-resolve" id="modal-resolve-btn" onclick="modalResolve()">✅ Đánh dấu đã giải quyết</button>
+    </div>
+
+    <div class="qna-reply-form" style="margin-top:16px">
+      <div class="qna-reply-form-title">✏️ Trả lời học viên</div>
+      <textarea class="form-control" id="modal-reply-textarea" placeholder="Viết câu trả lời của bạn..." style="min-height:100px"></textarea>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" id="modal-reply-btn" onclick="modalSubmitReply()">📤 Gửi câu trả lời</button>
+        <button class="btn btn-ghost btn-sm" onclick="closeModal()">Đóng</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<main class="container section">
+  <div class="page-header">
+    <h1 class="page-title">💬 Hộp thư Hỏi &amp; Đáp</h1>
+    <p class="page-subtitle">Tổng hợp câu hỏi từ tất cả khóa học của bạn</p>
+  </div>
+
+  <!-- Stats row -->
+  <div class="stats-grid" id="stats-row" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr));margin-bottom:24px"></div>
+
+  <!-- Filter bar -->
+  <div class="qna-inbox-filter">
+    <label for="filter-course" style="font-size:.85rem;font-weight:600;color:var(--text-dim);white-space:nowrap">Khóa học:</label>
+    <select class="form-control" id="filter-course" onchange="applyFilters()" style="min-width:220px">
+      <option value="">— Tất cả khóa học —</option>
+    </select>
+
+    <label for="filter-status" style="font-size:.85rem;font-weight:600;color:var(--text-dim);white-space:nowrap">Trạng thái:</label>
+    <select class="form-control" id="filter-status" onchange="applyFilters()" style="min-width:180px">
+      <option value="">Tất cả</option>
+      <option value="unanswered">⏳ Chưa có câu trả lời</option>
+      <option value="unresolved">💬 Chưa giải quyết</option>
+      <option value="resolved">✅ Đã giải quyết</option>
+    </select>
+
+    <button class="btn btn-outline btn-sm" onclick="loadQuestions(1)">🔄 Làm mới</button>
+  </div>
+
+  <!-- Question list -->
+  <div id="qna-inbox-container">
+    <div class="qna-inbox-list" id="qna-skeleton-list">
+      <div class="skeleton-card" style="padding:16px 20px;gap:10px">
+        <div style="display:flex;gap:8px;align-items:center">
+          <div class="skeleton" style="width:60px;height:11px;border-radius:4px"></div>
+          <div class="skeleton" style="width:40px;height:11px;border-radius:4px"></div>
+        </div>
+        <div class="skeleton skeleton-line medium"></div>
+        <div class="skeleton skeleton-line short thin"></div>
+      </div>
+      <div class="skeleton-card" style="padding:16px 20px;gap:10px">
+        <div style="display:flex;gap:8px;align-items:center">
+          <div class="skeleton" style="width:60px;height:11px;border-radius:4px"></div>
+          <div class="skeleton" style="width:40px;height:11px;border-radius:4px"></div>
+        </div>
+        <div class="skeleton skeleton-line medium"></div>
+        <div class="skeleton skeleton-line short thin"></div>
+      </div>
+      <div class="skeleton-card" style="padding:16px 20px;gap:10px">
+        <div style="display:flex;gap:8px;align-items:center">
+          <div class="skeleton" style="width:60px;height:11px;border-radius:4px"></div>
+          <div class="skeleton" style="width:40px;height:11px;border-radius:4px"></div>
+        </div>
+        <div class="skeleton skeleton-line medium"></div>
+        <div class="skeleton skeleton-line short thin"></div>
+      </div>
+      <div class="skeleton-card" style="padding:16px 20px;gap:10px">
+        <div style="display:flex;gap:8px;align-items:center">
+          <div class="skeleton" style="width:60px;height:11px;border-radius:4px"></div>
+          <div class="skeleton" style="width:40px;height:11px;border-radius:4px"></div>
+        </div>
+        <div class="skeleton skeleton-line medium"></div>
+        <div class="skeleton skeleton-line short thin"></div>
+      </div>
+    </div>
+    <div class="qna-inbox-list" id="qna-inbox-list" style="display:none"></div>
+  </div>
+
+  <div class="pagination" id="inbox-pagination"></div>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+// ── Auth ──────────────────────────────────────────────────────────────────────
+if (!requireAuth('/login.html')) throw 0;
+if (!requireRole('instructor', '/index.html')) throw 0;
+renderNavbar('instructor-qna');
+
+const currentUser = getUser();
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let inboxPage = 1, inboxTotalPages = 1;
+let currentModalQuestionId = null;
+
+// ── Time helper ───────────────────────────────────────────────────────────────
+function timeAgo(dateStr) {
+  const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
+  if (diff < 60) return 'vừa xong';
+  if (diff < 3600) return `${Math.floor(diff/60)} phút trước`;
+  if (diff < 86400) return `${Math.floor(diff/3600)} giờ trước`;
+  if (diff < 604800) return `${Math.floor(diff/86400)} ngày trước`;
+  if (diff < 2592000) return `${Math.floor(diff/604800)} tuần trước`;
+  return `${Math.floor(diff/2592000)} tháng trước`;
+}
+
+function avatarInitial(name) {
+  return (name || '?').charAt(0).toUpperCase();
+}
+
+function escHtml(str) {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ── Load courses for filter ───────────────────────────────────────────────────
+async function loadCourseFilter() {
+  const { ok, data } = await apiFetch('/instructor/courses');
+  if (!ok) return;
+  const courses = data.data || [];
+  const sel = document.getElementById('filter-course');
+  courses.forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c.id;
+    opt.textContent = c.title;
+    sel.appendChild(opt);
+  });
+}
+
+// ── Load questions ────────────────────────────────────────────────────────────
+async function loadQuestions(page = 1) {
+  inboxPage = page;
+
+  const courseId = document.getElementById('filter-course').value;
+  const status   = document.getElementById('filter-status').value;
+
+  const skeleton = document.getElementById('qna-skeleton-list');
+  const list     = document.getElementById('qna-inbox-list');
+  skeleton.style.display = 'flex';
+  skeleton.style.flexDirection = 'column';
+  list.style.display = 'none';
+  document.getElementById('inbox-pagination').innerHTML = '';
+
+  let endpoint = `/instructor/questions?page=${page}&limit=15`;
+  if (courseId) endpoint += `&course_id=${courseId}`;
+  if (status)   endpoint += `&status=${status}`;
+
+  const { ok, data } = await apiFetch(endpoint);
+
+  skeleton.style.display = 'none';
+  list.style.display = 'flex';
+
+  if (!ok) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">😕</div><p class="empty-text">Không thể tải danh sách câu hỏi.</p></div>`;
+    return;
+  }
+
+  const questions = data.data?.questions ?? data.data ?? [];
+  const totalPages = data.data?.totalPages ?? 1;
+  inboxTotalPages = totalPages;
+
+  // Stats row
+  renderStats(data.data);
+
+  if (!questions.length) {
+    list.innerHTML = `<div class="empty-state"><div class="empty-icon">📭</div><p class="empty-text">Không có câu hỏi nào phù hợp với bộ lọc.</p></div>`;
+    document.getElementById('inbox-pagination').innerHTML = '';
+    return;
+  }
+
+  list.innerHTML = questions.map(q => renderInboxRow(q)).join('');
+  renderInboxPagination();
+}
+
+function renderStats(rawData) {
+  const stats = rawData?.stats;
+  if (!stats) return;
+  const statsEl = document.getElementById('stats-row');
+  statsEl.innerHTML = `
+    <div class="stat-card"><div class="stat-icon">📬</div><div class="stat-value">${stats.total ?? 0}</div><div class="stat-label">Tổng câu hỏi</div></div>
+    <div class="stat-card" style="border-left:3px solid var(--warning)"><div class="stat-icon">⏳</div><div class="stat-value" style="color:var(--warning)">${stats.unanswered ?? 0}</div><div class="stat-label">Chưa có câu trả lời</div></div>
+    <div class="stat-card" style="border-left:3px solid var(--success)"><div class="stat-icon">✅</div><div class="stat-value" style="color:var(--success)">${stats.resolved ?? 0}</div><div class="stat-label">Đã giải quyết</div></div>
+  `;
+}
+
+function renderInboxRow(q) {
+  const noAnswers = (q.answers_count ?? 0) === 0;
+  const resolved  = q.is_resolved;
+
+  let rowClass = 'qna-inbox-row';
+  if (noAnswers && !resolved) rowClass += ' unanswered';
+
+  let statusBadge = '';
+  if (resolved) statusBadge = '<span class="badge badge-resolved">✅ Đã giải quyết</span>';
+  else if (noAnswers) statusBadge = '<span class="badge badge-unanswered">⏳ Chưa trả lời</span>';
+  else statusBadge = `<span class="badge badge-info">💬 ${q.answers_count} trả lời</span>`;
+
+  return `<div class="${rowClass}" onclick="openModal(${q.id})">
+    <div class="qna-inbox-row-info">
+      <div class="qna-inbox-meta">
+        <span class="qna-inbox-course">📖 ${escHtml(q.course?.title || q.course_title || '—')}</span>
+        <span style="color:var(--text-muted)">›</span>
+        <span class="qna-inbox-lesson">${escHtml(q.lesson?.title || q.lesson_title || '—')}</span>
+      </div>
+      <div class="qna-inbox-title">${escHtml(q.title)}</div>
+      <div class="qna-inbox-sub">
+        <span style="font-weight:600">👤 ${escHtml(q.user?.full_name || '—')}</span>
+        &nbsp;·&nbsp;
+        <span>${timeAgo(q.created_at)}</span>
+      </div>
+    </div>
+    <div class="qna-inbox-right">
+      ${statusBadge}
+      <span style="font-size:.78rem;color:var(--text-muted)">${timeAgo(q.created_at)}</span>
+    </div>
+  </div>`;
+}
+
+function renderInboxPagination() {
+  const pag = document.getElementById('inbox-pagination');
+  if (inboxTotalPages <= 1) { pag.innerHTML = ''; return; }
+  pag.innerHTML = `
+    <button class="btn btn-outline btn-sm" onclick="loadQuestions(${inboxPage-1})" ${inboxPage===1?'disabled':''}>← Trước</button>
+    <span class="page-info">Trang ${inboxPage} / ${inboxTotalPages}</span>
+    <button class="btn btn-outline btn-sm" onclick="loadQuestions(${inboxPage+1})" ${inboxPage===inboxTotalPages?'disabled':''}>Sau →</button>`;
+}
+
+function applyFilters() {
+  loadQuestions(1);
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+async function openModal(questionId) {
+  currentModalQuestionId = questionId;
+  document.getElementById('qna-modal').classList.remove('hidden');
+  document.getElementById('modal-q-title').textContent = 'Đang tải...';
+  document.getElementById('modal-q-body').textContent = '';
+  document.getElementById('modal-answers').innerHTML = '<div class="empty-state" style="padding:20px"><div class="spinner-ring"></div></div>';
+  document.getElementById('modal-reply-textarea').value = '';
+  document.getElementById('modal-resolve-wrap').style.display = 'none';
+
+  const { ok, data } = await apiFetch(`/questions/${questionId}`);
+  if (!ok) {
+    document.getElementById('modal-q-title').textContent = 'Không thể tải câu hỏi';
+    return;
+  }
+
+  const q = data.data;
+  const answers = q.answers || [];
+
+  document.getElementById('modal-meta').textContent =
+    `${q.course?.title || '—'} › ${q.lesson?.title || '—'} · ${q.user?.full_name || '—'} · ${timeAgo(q.created_at)}`;
+  document.getElementById('modal-q-title').textContent = q.title;
+  document.getElementById('modal-q-body').textContent = q.body || q.content || '';
+
+  // Resolve button
+  if (!q.is_resolved) {
+    document.getElementById('modal-resolve-wrap').style.display = 'block';
+  }
+
+  // Answers
+  let aHtml = `<div class="qna-answers-title">💬 ${answers.length} câu trả lời</div>`;
+  if (!answers.length) {
+    aHtml += `<div class="empty-state" style="padding:16px 0"><p class="empty-text">Chưa có câu trả lời nào.</p></div>`;
+  } else {
+    aHtml += answers.map(a => {
+      const isInst = a.is_instructor_answer;
+      const canDel = currentUser && (a.user_id === currentUser.id || currentUser.role === 'admin');
+      return `<div class="qna-answer-card${isInst ? ' instructor-answer' : ''}" style="margin-bottom:10px">
+        <div class="qna-answer-header">
+          <div class="qna-avatar qna-avatar-sm">${avatarInitial(a.user?.full_name)}</div>
+          <div class="qna-meta">
+            <div class="qna-author">${escHtml(a.user?.full_name || '—')}
+              ${isInst ? '<span class="badge badge-instructor" style="margin-left:6px">⭐ Giảng viên</span>' : ''}
+            </div>
+            <div class="qna-time">${timeAgo(a.created_at)}</div>
+          </div>
+          ${canDel ? `<button class="btn-icon-danger" onclick="deleteAnswer(${a.id})" title="Xóa">🗑</button>` : ''}
+        </div>
+        <div class="qna-answer-body">${escHtml(a.body || a.content || '')}</div>
+      </div>`;
+    }).join('');
+  }
+  document.getElementById('modal-answers').innerHTML = aHtml;
+}
+
+function closeModal() {
+  document.getElementById('qna-modal').classList.add('hidden');
+  currentModalQuestionId = null;
+}
+
+// Close modal on overlay click
+document.getElementById('qna-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+// Close on Escape
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
+
+async function modalSubmitReply() {
+  if (!currentModalQuestionId) return;
+  const body = document.getElementById('modal-reply-textarea').value.trim();
+  if (!body) { showToast('Vui lòng nhập nội dung câu trả lời', 'error'); return; }
+
+  const btn = document.getElementById('modal-reply-btn');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-sm"></span> Đang gửi...';
+
+  const { ok, data } = await apiFetch(`/questions/${currentModalQuestionId}/answers`, {
+    method: 'POST',
+    body: JSON.stringify({ body }),
+  });
+
+  btn.disabled = false; btn.textContent = '📤 Gửi câu trả lời';
+
+  if (!ok) { showToast(data.message || 'Gửi thất bại', 'error'); return; }
+
+  showToast('Đã gửi câu trả lời! ✅', 'success');
+  document.getElementById('modal-reply-textarea').value = '';
+
+  // Refresh modal
+  await openModal(currentModalQuestionId);
+  // Refresh list row
+  loadQuestions(inboxPage);
+}
+
+async function modalResolve() {
+  if (!currentModalQuestionId) return;
+  const { ok, data } = await apiFetch(`/questions/${currentModalQuestionId}/resolve`, { method: 'PUT' });
+  if (!ok) { showToast(data.message || 'Lỗi', 'error'); return; }
+  showToast('Đã đánh dấu đã giải quyết ✅', 'success');
+  await openModal(currentModalQuestionId);
+  loadQuestions(inboxPage);
+}
+
+async function deleteAnswer(aId) {
+  if (!confirm('Xóa câu trả lời này?')) return;
+  const { ok, data } = await apiFetch(`/answers/${aId}`, { method: 'DELETE' });
+  if (!ok) { showToast(data.message || 'Xóa thất bại', 'error'); return; }
+  showToast('Đã xóa câu trả lời', 'success');
+  await openModal(currentModalQuestionId);
+  loadQuestions(inboxPage);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+(async () => {
+  await loadCourseFilter();
+  await loadQuestions(1);
+})();
+</script>
+</body>
+</html>

@@ -194,10 +194,14 @@ function renderNavbar(activePage = '') {
         <a href="/wallet.html" class="nav-link ${activePage==='wallet'?'active':''}">&#128176; Ví tiền</a>`;
     } else if (user.role === 'instructor') {
       roleLinks = `
+        <a href="/instructor-stats.html" class="nav-link ${activePage==='instructor-stats'?'active':''}">📊 Thống kê</a>
         <a href="/instructor.html" class="nav-link ${activePage==='instructor'?'active':''}">🎓 Giảng dạy</a>
+        <a href="/instructor-questions.html" class="nav-link ${activePage==='instructor-qna'?'active':''}">💬 Hỏi &amp; Đáp</a>
         <a href="/instructor-wallet.html" class="nav-link ${activePage==='instructor-wallet'?'active':''}">&#128176; Ví doanh thu</a>`;
     } else if (user.role === 'admin') {
       roleLinks = `
+        <a href="/admin-dashboard.html" class="nav-link ${activePage==='admin-dashboard'?'active':''}">📊 Tổng quan</a>
+        <a href="/admin-users.html" class="nav-link ${activePage==='admin-users'?'active':''}">👥 Người dùng</a>
         <a href="/admin.html" class="nav-link ${activePage==='admin'?'active':''}">⚙️ Admin</a>
         <a href="/admin-withdrawals.html" class="nav-link ${activePage==='admin-withdrawals'?'active':''}">&#128176; Rút tiền</a>`;
     }
