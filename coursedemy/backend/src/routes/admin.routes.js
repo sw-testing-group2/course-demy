@@ -9,12 +9,17 @@ const {
   rejectCourse,
   getUsers,
   toggleLockUser,
+  updateUserRole,
+  updateUserStatus,
   createCategory,
   updateCategory,
   deleteCategory,
   getAdminWithdrawals,
   approveWithdrawal,
   rejectWithdrawal,
+  getAdminStatsOverview,
+  getAdminStatsRevenue,
+  getAdminTopCourses,
 } = require('../controllers/admin.controller');
 
 // Tất cả admin routes yêu cầu authenticate + role admin
@@ -28,6 +33,8 @@ router.put('/courses/:id/reject',      rejectCourse);
 // ── User management ───────────────────────────────────────────────────────────
 router.get('/users',                   getUsers);
 router.put('/users/:id/lock',          toggleLockUser);
+router.put('/users/:id/role',          updateUserRole);
+router.put('/users/:id/status',        updateUserStatus);
 
 // ── Category management ───────────────────────────────────────────────────────
 router.post('/categories',             createCategory);
@@ -39,5 +46,9 @@ router.get('/withdrawals',             getAdminWithdrawals);
 router.put('/withdrawals/:id/approve', approveWithdrawal);
 router.put('/withdrawals/:id/reject',  rejectWithdrawal);
 
-module.exports = router;
+// ── Stats ─────────────────────────────────────────────────────────────────────
+router.get('/stats/overview',          getAdminStatsOverview);
+router.get('/stats/revenue',           getAdminStatsRevenue);
+router.get('/stats/top-courses',       getAdminTopCourses);
 
+module.exports = router;

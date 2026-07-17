@@ -109,31 +109,51 @@ function rejectCourse(req, res) {
 // ─── GET /api/admin/users ────────────────────────────────────────────────────
 function getUsers(req, res) {
   try {
-    const { role, status } = req.query;
+    const page   = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit  = Math.max(1, parseInt(req.query.limit) || 10);
+    const offset = (page - 1) * limit;
+    const { role, search } = req.query;
 
     const conditions = [];
     const params     = [];
 
-    if (role)   { conditions.push('role = ?');   params.push(role); }
-    if (status) { conditions.push('status = ?'); params.push(status); }
+    if (role) { conditions.push('role = ?'); params.push(role); }
+    if (search && search.trim()) {
+      conditions.push('(full_name LIKE ? OR email LIKE ?)');
+      const kw = `%${search.trim()}%`;
+      params.push(kw, kw);
+    }
 
-    const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
 
-    const users = db.prepare(`
-      SELECT id, full_name, email, role, status, created_at
+    const { total } = db
+      .prepare(`SELECT COUNT(*) AS total FROM users ${where}`)
+      .get(...params);
+
+    const rows = db.prepare(`
+      SELECT id, full_name, email, role, avatar, created_at, is_active
       FROM users
-      ${whereClause}
+      ${where}
       ORDER BY created_at DESC
-    `).all(...params);
+      LIMIT ? OFFSET ?
+    `).all(...params, limit, offset);
 
-    return res.status(200).json({ success: true, data: users });
+    return res.status(200).json({
+      success: true,
+      data: {
+        users: rows,
+        total,
+        page,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
   } catch (err) {
     console.error('[getUsers]', err);
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 }
 
-// ─── PUT /api/admin/users/:id/lock ───────────────────────────────────────────
+// ─── PUT /api/admin/users/:id/lock (giữ cũ cho backward-compat) ──────────────
 function toggleLockUser(req, res) {
   const userId = parseInt(req.params.id);
 
@@ -169,6 +189,97 @@ function toggleLockUser(req, res) {
     return res.status(500).json({ success: false, message: 'Lỗi server' });
   }
 }
+
+// ─── PUT /api/admin/users/:id/role ───────────────────────────────────────────
+function updateUserRole(req, res) {
+  const userId = parseInt(req.params.id);
+  const { role } = req.body;
+
+  // Validate role
+  if (!role || !['student', 'instructor'].includes(role)) {
+    return res.status(400).json({ success: false, message: 'Vai trò không hợp lệ' });
+  }
+
+  try {
+    const user = db
+      .prepare('SELECT id, full_name, email, role FROM users WHERE id = ?')
+      .get(userId);
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Người dùng không tồn tại' });
+    }
+
+    // Không cho phép đổi role admin (dù là admin tự đổi chính mình)
+    if (user.role === 'admin' || userId === req.user.id) {
+      return res.status(403).json({
+        success: false,
+        message: 'Không thể thay đổi vai trò của quản trị viên',
+      });
+    }
+
+    // Nếu hạ từ instructor → student, kiểm tra khóa học đã approved
+    if (user.role === 'instructor' && role === 'student') {
+      const activeCourses = db
+        .prepare("SELECT COUNT(*) AS cnt FROM courses WHERE instructor_id = ? AND status = 'approved'")
+        .get(userId);
+      if (activeCourses.cnt > 0) {
+        return res.status(409).json({
+          success: false,
+          message: 'Không thể chuyển vai trò vì giảng viên đang có khóa học đã được duyệt. Vui lòng ẩn/chuyển giao khóa học trước',
+        });
+      }
+    }
+
+    db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, userId);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Cập nhật vai trò người dùng thành công',
+      data: { id: user.id, full_name: user.full_name, email: user.email, role },
+    });
+  } catch (err) {
+    console.error('[updateUserRole]', err);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+}
+
+// ─── PUT /api/admin/users/:id/status ─────────────────────────────────────────
+function updateUserStatus(req, res) {
+  const userId = parseInt(req.params.id);
+  const { is_active } = req.body;
+
+  if (is_active === undefined || is_active === null) {
+    return res.status(400).json({ success: false, message: 'Thiếu trường is_active' });
+  }
+
+  // Không cho tự khóa mình
+  if (userId === req.user.id) {
+    return res.status(403).json({
+      success: false,
+      message: 'Không thể tự khóa tài khoản đang đăng nhập',
+    });
+  }
+
+  try {
+    const user = db.prepare('SELECT id FROM users WHERE id = ?').get(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'Người dùng không tồn tại' });
+    }
+
+    const activeVal = is_active ? 1 : 0;
+    db.prepare('UPDATE users SET is_active = ? WHERE id = ?').run(activeVal, userId);
+
+    return res.status(200).json({
+      success: true,
+      message: 'Cập nhật trạng thái tài khoản thành công',
+      data: { id: userId, is_active: activeVal },
+    });
+  } catch (err) {
+    console.error('[updateUserStatus]', err);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+}
+
 
 // ══════════════════════════════════════════════════════
 //  CATEGORY MANAGEMENT
@@ -479,17 +590,194 @@ function rejectWithdrawal(req, res) {
   }
 }
 
+// ══════════════════════════════════════════════════════
+//  ADMIN STATS
+// ══════════════════════════════════════════════════════
+
+// ─── Helper: sinh mảng labels ngày/tháng ─────────────────────────────────────
+function buildLabels(period) {
+  const now    = new Date();
+  const labels = [];
+  if (period === '7days') {
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now); d.setDate(d.getDate() - i);
+      labels.push(d.toISOString().slice(0, 10));
+    }
+  } else if (period === '30days') {
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(now); d.setDate(d.getDate() - i);
+      labels.push(d.toISOString().slice(0, 10));
+    }
+  } else {
+    // 12months
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      labels.push(`${y}-${m}`);
+    }
+  }
+  return labels;
+}
+
+// ─── GET /api/admin/stats/overview ───────────────────────────────────────────
+function getAdminStatsOverview(req, res) {
+  try {
+    // Users theo role
+    const userRows = db.prepare(
+      'SELECT role, COUNT(*) AS cnt FROM users GROUP BY role'
+    ).all();
+    const usersByRole = { student: 0, instructor: 0, admin: 0 };
+    let totalUsers = 0;
+    for (const r of userRows) {
+      if (r.role in usersByRole) usersByRole[r.role] = r.cnt;
+      totalUsers += r.cnt;
+    }
+
+    // Courses theo status
+    const courseRows = db.prepare(
+      'SELECT status, COUNT(*) AS cnt FROM courses GROUP BY status'
+    ).all();
+    const coursesByStatus = { approved: 0, pending: 0, rejected: 0 };
+    let totalCourses = 0;
+    for (const r of courseRows) {
+      if (r.status in coursesByStatus) coursesByStatus[r.status] = r.cnt;
+      totalCourses += r.cnt;
+    }
+
+    // Orders paid
+    const orderRow = db.prepare(
+      "SELECT COUNT(*) AS cnt, COALESCE(SUM(total_amount), 0) AS revenue FROM orders WHERE status = 'paid'"
+    ).get();
+
+    // Enrollments
+    const enrollRow = db.prepare('SELECT COUNT(*) AS cnt FROM enrollments').get();
+
+    // Pending withdrawals
+    const withdrawRow = db.prepare(
+      "SELECT COUNT(*) AS cnt FROM withdrawal_requests WHERE status = 'pending'"
+    ).get();
+
+    // Pending courses
+    const pendingCoursesRow = db.prepare(
+      "SELECT COUNT(*) AS cnt FROM courses WHERE status = 'pending'"
+    ).get();
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        total_users:         totalUsers,
+        users_by_role:       usersByRole,
+        total_courses:       totalCourses,
+        courses_by_status:   coursesByStatus,
+        total_orders:        orderRow.cnt,
+        total_revenue:       orderRow.revenue,
+        total_enrollments:   enrollRow.cnt,
+        pending_withdrawals: withdrawRow.cnt,
+        pending_courses:     pendingCoursesRow.cnt,
+      },
+    });
+  } catch (err) {
+    console.error('[getAdminStatsOverview]', err);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+}
+
+// ─── GET /api/admin/stats/revenue ────────────────────────────────────────────
+function getAdminStatsRevenue(req, res) {
+  try {
+    const period = ['7days', '30days', '12months'].includes(req.query.period)
+      ? req.query.period
+      : '30days';
+
+    const labels   = buildLabels(period);
+    const groupFmt = period === '12months'
+      ? "strftime('%Y-%m', created_at)"
+      : "strftime('%Y-%m-%d', created_at)";
+
+    const firstLabel = labels[0];
+    const startDate  = period === '12months' ? `${firstLabel}-01` : firstLabel;
+
+    const rows = db.prepare(`
+      SELECT ${groupFmt} AS label, COALESCE(SUM(total_amount), 0) AS total
+      FROM orders
+      WHERE status = 'paid'
+        AND created_at >= ?
+      GROUP BY label
+    `).all(startDate);
+
+    const revenueMap = {};
+    for (const r of rows) revenueMap[r.label] = r.total;
+    const revenue = labels.map((l) => revenueMap[l] ?? 0);
+
+    return res.status(200).json({
+      success: true,
+      data: { period, labels, revenue },
+    });
+  } catch (err) {
+    console.error('[getAdminStatsRevenue]', err);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+}
+
+// ─── GET /api/admin/stats/top-courses ────────────────────────────────────────
+function getAdminTopCourses(req, res) {
+  try {
+    const limitNum = Math.max(1, parseInt(req.query.limit) || 10);
+
+    const rows = db.prepare(`
+      SELECT
+        c.id,
+        c.title,
+        c.thumbnail,
+        COUNT(DISTINCT e.user_id)              AS students_count,
+        COALESCE(SUM(oi.price), 0)             AS revenue,
+        COALESCE(ROUND(AVG(rv.rating), 1), 0) AS avg_rating,
+        u.full_name AS instructor_name
+      FROM courses c
+      LEFT JOIN enrollments e  ON e.course_id = c.id
+      LEFT JOIN order_items oi ON oi.course_id = c.id
+      LEFT JOIN orders o       ON oi.order_id = o.id AND o.status = 'paid'
+      LEFT JOIN reviews rv     ON rv.course_id = c.id
+      JOIN users u             ON c.instructor_id = u.id
+      WHERE c.status = 'approved'
+      GROUP BY c.id
+      ORDER BY revenue DESC
+      LIMIT ?
+    `).all(limitNum);
+
+    const data = rows.map((row) => ({
+      id:             row.id,
+      title:          row.title,
+      thumbnail:      row.thumbnail,
+      students_count: row.students_count,
+      revenue:        row.revenue,
+      avg_rating:     row.avg_rating,
+      instructor:     { full_name: row.instructor_name },
+    }));
+
+    return res.status(200).json({ success: true, data });
+  } catch (err) {
+    console.error('[getAdminTopCourses]', err);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+}
+
 module.exports = {
   getPendingCourses,
   approveCourse,
   rejectCourse,
   getUsers,
   toggleLockUser,
+  updateUserRole,
+  updateUserStatus,
   createCategory,
   updateCategory,
   deleteCategory,
   getAdminWithdrawals,
   approveWithdrawal,
   rejectWithdrawal,
+  getAdminStatsOverview,
+  getAdminStatsRevenue,
+  getAdminTopCourses,
 };
-

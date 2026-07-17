@@ -31,6 +31,7 @@ const adminRoutes      = require('./routes/admin.routes');
 const wishlistRoutes   = require('./routes/wishlist.routes');
 const walletRoutes     = require('./routes/wallet.routes');
 const paymentsRoutes   = require('./routes/payments.routes');
+const qnaRoutes        = require('./routes/qna.routes');
 
 app.use('/api/auth',        authRoutes);
 app.use('/api/categories',  coursesRoutes);
@@ -42,7 +43,8 @@ app.use('/api/instructor',  instructorRoutes);
 app.use('/api/admin',       adminRoutes);
 app.use('/api/wishlist',    wishlistRoutes);
 app.use('/api/wallet',      walletRoutes);
-app.use('/api/payments',   paymentsRoutes);
+app.use('/api/payments',    paymentsRoutes);
+app.use('/api',             qnaRoutes);
 
 // ─── Khởi động server ─────────────────────────────────────────────────────
 app.listen(PORT, () => {

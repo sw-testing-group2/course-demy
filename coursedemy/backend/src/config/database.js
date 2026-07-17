@@ -95,6 +95,16 @@ if (!userColumns.find((col) => col.name === 'balance')) {
   db.exec(`ALTER TABLE users ADD COLUMN balance REAL NOT NULL DEFAULT 0`);
 }
 
+// ── Thêm cột is_active vào bảng users nếu chưa có ────────────────────────────
+if (!userColumns.find((col) => col.name === 'is_active')) {
+  db.exec(`ALTER TABLE users ADD COLUMN is_active INTEGER NOT NULL DEFAULT 1`);
+}
+
+// ── Thêm cột avatar vào bảng users nếu chưa có ───────────────────────────────
+if (!userColumns.find((col) => col.name === 'avatar')) {
+  db.exec(`ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT NULL`);
+}
+
 // ── Thêm cột payment_method vào bảng orders nếu chưa có ──────────────────────
 const orderColumns = db.prepare("PRAGMA table_info('orders')").all();
 if (!orderColumns.find((col) => col.name === 'payment_method')) {
@@ -115,6 +125,54 @@ db.exec(`
     type TEXT NOT NULL CHECK(type IN ('deposit','payment','withdrawal','refund','income')),
     status TEXT NOT NULL DEFAULT 'success' CHECK(status IN ('pending','success','failed')),
     description TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
+// ── Tạo bảng sections và lessons (nội dung khóa học) ─────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS sections (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+
+  CREATE TABLE IF NOT EXISTS lessons (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    section_id INTEGER NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
+    course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    content TEXT,
+    video_url TEXT,
+    duration INTEGER DEFAULT 0,
+    position INTEGER NOT NULL DEFAULT 0,
+    is_preview INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
+// ── Tạo bảng Q&A: lesson_questions và lesson_answers ─────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS lesson_questions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lesson_id INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+    course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    is_resolved INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS lesson_answers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    question_id INTEGER NOT NULL REFERENCES lesson_questions(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    content TEXT NOT NULL,
+    is_instructor_answer INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
 `);

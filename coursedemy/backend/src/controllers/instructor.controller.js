@@ -302,6 +302,273 @@ function getWithdrawals(req, res) {
   }
 }
 
+// ─── GET /api/instructor/questions — Hộp thư Q&A ──────────────────────────────
+function getInstructorQuestions(req, res) {
+  try {
+    const page     = Math.max(1, parseInt(req.query.page)  || 1);
+    const limit    = Math.max(1, parseInt(req.query.limit) || 10);
+    const offset   = (page - 1) * limit;
+    const status   = req.query.status   || 'all';   // 'all' | 'resolved' | 'unresolved'
+    const courseId = req.query.course_id ? parseInt(req.query.course_id) : null;
+
+    const conditions = ['c.instructor_id = ?'];
+    const params     = [req.user.id];
+
+    if (status === 'resolved') {
+      conditions.push('q.is_resolved = 1');
+    } else if (status === 'unresolved') {
+      conditions.push('q.is_resolved = 0');
+    }
+
+    if (courseId) {
+      conditions.push('q.course_id = ?');
+      params.push(courseId);
+    }
+
+    const where = `WHERE ${conditions.join(' AND ')}`;
+
+    // Đếm tổng
+    const { total } = db.prepare(`
+      SELECT COUNT(*) AS total
+      FROM lesson_questions q
+      JOIN courses c ON q.course_id = c.id
+      ${where}
+    `).get(...params);
+
+    // Lấy dữ liệu: câu hỏi chưa trả lời hiển thị trước
+    const rows = db.prepare(`
+      SELECT
+        q.id,
+        q.title,
+        q.content,
+        q.is_resolved,
+        q.created_at,
+        c.id    AS course_id,
+        c.title AS course_title,
+        l.id    AS lesson_id,
+        l.title AS lesson_title,
+        u.full_name AS user_full_name,
+        (SELECT COUNT(*) FROM lesson_answers a WHERE a.question_id = q.id) AS answers_count
+      FROM lesson_questions q
+      JOIN courses c ON q.course_id = c.id
+      JOIN lessons l ON q.lesson_id = l.id
+      JOIN users u   ON q.user_id  = u.id
+      ${where}
+      ORDER BY
+        answers_count ASC,
+        q.created_at DESC
+      LIMIT ? OFFSET ?
+    `).all(...params, limit, offset);
+
+    const questions = rows.map((row) => ({
+      id:          row.id,
+      title:       row.title,
+      content:     row.content,
+      is_resolved: row.is_resolved,
+      answers_count: row.answers_count,
+      created_at:  row.created_at,
+      course: {
+        id:    row.course_id,
+        title: row.course_title,
+      },
+      lesson: {
+        id:    row.lesson_id,
+        title: row.lesson_title,
+      },
+      user: {
+        full_name: row.user_full_name,
+      },
+    }));
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        questions,
+        total,
+        page,
+        totalPages: Math.ceil(total / limit),
+      },
+    });
+  } catch (err) {
+    console.error('[getInstructorQuestions]', err);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+}
+
+// ══════════════════════════════════════════════════════
+//  INSTRUCTOR STATS
+// ══════════════════════════════════════════════════════
+
+// ─── Helper: sinh mảng labels ngày/tháng ──────────────────────────────────────
+function buildLabels(period) {
+  const now    = new Date();
+  const labels = [];
+
+  if (period === '7days') {
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      labels.push(d.toISOString().slice(0, 10)); // YYYY-MM-DD
+    }
+  } else if (period === '30days') {
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(d.getDate() - i);
+      labels.push(d.toISOString().slice(0, 10));
+    }
+  } else {
+    // 12months
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      labels.push(`${y}-${m}`);
+    }
+  }
+
+  return labels;
+}
+
+// ─── GET /api/instructor/stats/overview ───────────────────────────────────────
+function getInstructorStatsOverview(req, res) {
+  try {
+    const instructorId = req.user.id;
+
+    // Doanh thu (type='income')
+    const revenueRow = db.prepare(`
+      SELECT COALESCE(SUM(amount), 0) AS total_revenue
+      FROM wallet_transactions
+      WHERE user_id = ? AND type = 'income' AND status = 'success'
+    `).get(instructorId);
+
+    // Tổng học viên riêng biệt
+    const studentsRow = db.prepare(`
+      SELECT COUNT(DISTINCT e.user_id) AS total_students
+      FROM enrollments e
+      JOIN courses c ON e.course_id = c.id
+      WHERE c.instructor_id = ?
+    `).get(instructorId);
+
+    // Số khóa học theo status
+    const courseRows = db.prepare(`
+      SELECT status, COUNT(*) AS cnt
+      FROM courses
+      WHERE instructor_id = ?
+      GROUP BY status
+    `).all(instructorId);
+
+    const coursesByStatus = { approved: 0, pending: 0, rejected: 0 };
+    let totalCourses = 0;
+    for (const r of courseRows) {
+      if (r.status in coursesByStatus) coursesByStatus[r.status] = r.cnt;
+      totalCourses += r.cnt;
+    }
+
+    // Điểm đánh giá trung bình
+    const ratingRow = db.prepare(`
+      SELECT COALESCE(ROUND(AVG(rv.rating), 1), 0) AS avg_rating
+      FROM reviews rv
+      JOIN courses c ON rv.course_id = c.id
+      WHERE c.instructor_id = ?
+    `).get(instructorId);
+
+    // Số dư ví
+    const balanceRow = db.prepare('SELECT balance FROM users WHERE id = ?').get(instructorId);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        total_revenue:    revenueRow.total_revenue,
+        total_students:   studentsRow.total_students,
+        total_courses:    totalCourses,
+        courses_by_status: coursesByStatus,
+        avg_rating:       ratingRow.avg_rating,
+        current_balance:  balanceRow.balance,
+      },
+    });
+  } catch (err) {
+    console.error('[getInstructorStatsOverview]', err);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+}
+
+// ─── GET /api/instructor/stats/revenue ────────────────────────────────────────
+function getInstructorStatsRevenue(req, res) {
+  try {
+    const instructorId = req.user.id;
+    const period = ['7days', '30days', '12months'].includes(req.query.period)
+      ? req.query.period
+      : '30days';
+
+    const labels   = buildLabels(period);
+    const groupFmt = period === '12months' ? "strftime('%Y-%m', created_at)" : "strftime('%Y-%m-%d', created_at)";
+
+    // Tính ngày bắt đầu
+    const firstLabel = labels[0];
+    const startDate  = period === '12months' ? `${firstLabel}-01` : firstLabel;
+
+    const rows = db.prepare(`
+      SELECT ${groupFmt} AS label, COALESCE(SUM(amount), 0) AS total
+      FROM wallet_transactions
+      WHERE user_id = ?
+        AND type = 'income'
+        AND status = 'success'
+        AND created_at >= ?
+      GROUP BY label
+    `).all(instructorId, startDate);
+
+    // Map SQL kết quả vào labels (zero-fill các mốc không có dữ liệu)
+    const revenueMap = {};
+    for (const r of rows) revenueMap[r.label] = r.total;
+
+    const revenue = labels.map((l) => revenueMap[l] ?? 0);
+
+    return res.status(200).json({
+      success: true,
+      data: { period, labels, revenue },
+    });
+  } catch (err) {
+    console.error('[getInstructorStatsRevenue]', err);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+}
+
+// ─── GET /api/instructor/stats/courses ────────────────────────────────────────
+function getInstructorStatsCourses(req, res) {
+  try {
+    const instructorId = req.user.id;
+
+    // Doanh thu theo từng khóa học tính từ order_items (chính xác nhất)
+    const courseStats = db.prepare(`
+      SELECT
+        c.id,
+        c.title,
+        c.thumbnail,
+        c.status,
+        COUNT(DISTINCT e.user_id)              AS students_count,
+        COALESCE(SUM(oi.price), 0)             AS revenue,
+        COALESCE(ROUND(AVG(rv.rating), 1), 0) AS avg_rating,
+        COUNT(DISTINCT rv.id)                  AS reviews_count
+      FROM courses c
+      LEFT JOIN enrollments e  ON e.course_id = c.id
+      LEFT JOIN order_items oi ON oi.course_id = c.id
+      LEFT JOIN orders o       ON oi.order_id = o.id AND o.status = 'paid'
+      LEFT JOIN reviews rv     ON rv.course_id = c.id
+      WHERE c.instructor_id = ?
+      GROUP BY c.id
+      ORDER BY revenue DESC
+    `).all(instructorId);
+
+    return res.status(200).json({
+      success: true,
+      data: courseStats,
+    });
+  } catch (err) {
+    console.error('[getInstructorStatsCourses]', err);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+}
+
 module.exports = {
   getInstructorCourses,
   createCourse,
@@ -310,5 +577,8 @@ module.exports = {
   getCourseStudents,
   createWithdrawal,
   getWithdrawals,
+  getInstructorQuestions,
+  getInstructorStatsOverview,
+  getInstructorStatsRevenue,
+  getInstructorStatsCourses,
 };
-

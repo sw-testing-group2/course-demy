@@ -30,7 +30,7 @@ function authenticate(req, res, next) {
 
   // Kiểm tra user có tồn tại trong DB không
   const user = db
-    .prepare('SELECT id, email, role, status, full_name FROM users WHERE id = ?')
+    .prepare('SELECT id, email, role, status, is_active, full_name FROM users WHERE id = ?')
     .get(decoded.id);
 
   if (!user) {
@@ -40,8 +40,8 @@ function authenticate(req, res, next) {
     });
   }
 
-  // Kiểm tra tài khoản bị khóa
-  if (user.status === 'locked') {
+  // Kiểm tra tài khoản bị khóa (status cũ) hoặc is_active = 0 (mới)
+  if (user.status === 'locked' || user.is_active === 0) {
     return res.status(403).json({
       success: false,
       message: 'Tài khoản đã bị khóa',
