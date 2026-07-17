@@ -12,6 +12,9 @@ const {
   createCategory,
   updateCategory,
   deleteCategory,
+  getAdminWithdrawals,
+  approveWithdrawal,
+  rejectWithdrawal,
 } = require('../controllers/admin.controller');
 
 // Tất cả admin routes yêu cầu authenticate + role admin
@@ -31,4 +34,10 @@ router.post('/categories',             createCategory);
 router.put('/categories/:id',          updateCategory);
 router.delete('/categories/:id',       deleteCategory);
 
+// ── Withdrawal management ─────────────────────────────────────────────────────
+router.get('/withdrawals',             getAdminWithdrawals);
+router.put('/withdrawals/:id/approve', approveWithdrawal);
+router.put('/withdrawals/:id/reject',  rejectWithdrawal);
+
 module.exports = router;
+

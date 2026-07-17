@@ -21,6 +21,7 @@
     <div class="stat-card"><div class="stat-icon">👥</div><div class="stat-value" id="stat-users">—</div><div class="stat-label">Tổng người dùng</div></div>
     <div class="stat-card"><div class="stat-icon">📚</div><div class="stat-value" id="stat-courses">—</div><div class="stat-label">Tổng khóa học</div></div>
     <div class="stat-card"><div class="stat-icon">📂</div><div class="stat-value" id="stat-cats">—</div><div class="stat-label">Danh mục</div></div>
+    <div class="stat-card"><div class="stat-icon">💸</div><div class="stat-value" id="stat-withdrawals" style="color:var(--warning)">—</div><div class="stat-label">Rút tiền chờ duyệt</div></div>
   </div>
 
   <h2 class="section-title" style="margin-bottom:16px">Quản lý</h2>
@@ -37,6 +38,10 @@
       <span class="admin-link-icon">📂</span>
       <div><div>Quản lý danh mục</div><div style="font-size:.8rem;font-weight:400;color:var(--text-dim);margin-top:2px">Thêm, sửa, xóa danh mục</div></div>
     </a>
+    <a href="/admin-withdrawals.html" class="admin-link-card">
+      <span class="admin-link-icon">💸</span>
+      <div><div>Phê duyệt rút tiền</div><div style="font-size:.8rem;font-weight:400;color:var(--text-dim);margin-top:2px">Duyệt/từ chối yêu cầu rút tiền</div></div>
+    </a>
   </div>
 </main>
 
@@ -48,11 +53,12 @@ if (!requireRole('admin', '/index.html')) throw 0;
 
 (async () => {
   showSpinner();
-  const [pendingRes, usersRes, coursesRes, catsRes] = await Promise.all([
+  const [pendingRes, usersRes, coursesRes, catsRes, wdRes] = await Promise.all([
     apiFetch('/admin/courses/pending'),
     apiFetch('/admin/users'),
     apiFetch('/courses?limit=1'),
     apiFetch('/categories'),
+    apiFetch('/admin/withdrawals?status=pending'),
   ]);
   hideSpinner();
 
@@ -61,11 +67,19 @@ if (!requireRole('admin', '/index.html')) throw 0;
   if (coursesRes.ok) document.getElementById('stat-courses').textContent = coursesRes.data.data.total;
   if (catsRes.ok)    document.getElementById('stat-cats').textContent    = catsRes.data.data.length;
 
+  // Withdrawals pending count
+  if (wdRes.ok) {
+    const wdList = wdRes.data.data?.withdrawals ?? wdRes.data.data ?? [];
+    const pendingCount = Array.isArray(wdList) ? wdList.filter(w => w.status === 'pending').length : 0;
+    document.getElementById('stat-withdrawals').textContent = pendingCount;
+  }
+
   // Highlight pending badge if > 0
   if (pendingRes.ok && pendingRes.data.data.length > 0) {
     document.getElementById('stat-pending').style.color = 'var(--warning)';
   }
 })();
+
 </script>
 </body>
 </html>

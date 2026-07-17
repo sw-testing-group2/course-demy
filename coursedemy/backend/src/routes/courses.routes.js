@@ -1,11 +1,13 @@
 const express = require('express');
-const router = express.Router();
+const router  = express.Router();
 
 const {
   getCategories,
   getCourses,
   getCourseById,
 } = require('../controllers/courses.controller');
+
+const reviewsRouter = require('./reviews.routes');
 
 const jwt = require('jsonwebtoken');
 const db  = require('../config/database');
@@ -38,6 +40,7 @@ function optionalAuthenticate(req, res, next) {
  *   app.use('/api/categories', coursesRoutes)  → GET / → getCategories
  *   app.use('/api/courses',    coursesRoutes)  → GET / → getCourses
  *                                              → GET /:id → getCourseById
+ *                                              → GET|POST /:id/reviews → reviewsRouter
  *
  * Dùng req.baseUrl để phân biệt ngữ cảnh.
  */
@@ -50,7 +53,12 @@ router.get('/', (req, res) => {
   return getCourses(req, res);
 });
 
+// Sub-router cho đánh giá: GET|POST /api/courses/:id/reviews
+// Phải đặt TRƯỚC /:id để Express không nhầm 'reviews' là tham số :id
+router.use('/:id/reviews', reviewsRouter);
+
 // GET /:id — chi tiết một khóa học, dùng optionalAuthenticate để phân quyền xem pending/rejected
 router.get('/:id', optionalAuthenticate, getCourseById);
 
 module.exports = router;
+

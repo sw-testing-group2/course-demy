@@ -227,10 +227,88 @@ function getCourseStudents(req, res) {
   }
 }
 
+// ─── POST /api/instructor/withdrawals ────────────────────────────────────────
+function createWithdrawal(req, res) {
+  try {
+    const { amount, bank_name, account_number, account_holder } = req.body;
+
+    if (!amount || amount <= 0 || !bank_name || !account_number || !account_holder) {
+      return res.status(400).json({
+        success: false,
+        message: 'Vui lòng cung cấp đầy đủ thông tin: amount (số dương), bank_name, account_number, account_holder',
+      });
+    }
+
+    // Kiểm tra số dư
+    const user = db.prepare('SELECT balance FROM users WHERE id = ?').get(req.user.id);
+
+    if (user.balance < amount) {
+      return res.status(400).json({
+        success: false,
+        message: 'Số dư tài khoản không đủ để rút',
+      });
+    }
+
+    const doWithdraw = db.transaction(() => {
+      // 1. Trừ số dư ví ngay
+      db.prepare('UPDATE users SET balance = balance - ? WHERE id = ?')
+        .run(amount, req.user.id);
+
+      // 2. Tạo yêu cầu rút tiền
+      const result = db.prepare(`
+        INSERT INTO withdrawal_requests (instructor_id, amount, bank_name, account_number, account_holder, status)
+        VALUES (?, ?, ?, ?, ?, 'pending')
+      `).run(req.user.id, amount, bank_name, account_number, account_holder);
+
+      // 3. Ghi giao dịch ví
+      db.prepare(`
+        INSERT INTO wallet_transactions (user_id, amount, type, status, description)
+        VALUES (?, ?, 'withdrawal', 'pending', 'Yêu cầu rút tiền về ngân hàng')
+      `).run(req.user.id, amount);
+
+      return result.lastInsertRowid;
+    });
+
+    const withdrawalId = doWithdraw();
+
+    return res.status(201).json({
+      success: true,
+      message: 'Tạo yêu cầu rút tiền thành công, đang chờ Admin duyệt',
+      data: {
+        withdrawal_id: withdrawalId,
+        amount,
+      },
+    });
+  } catch (err) {
+    console.error('[createWithdrawal]', err);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+}
+
+// ─── GET /api/instructor/withdrawals ─────────────────────────────────────────
+function getWithdrawals(req, res) {
+  try {
+    const withdrawals = db.prepare(`
+      SELECT id, amount, bank_name, account_number, account_holder, status, reason, created_at, processed_at
+      FROM withdrawal_requests
+      WHERE instructor_id = ?
+      ORDER BY created_at DESC
+    `).all(req.user.id);
+
+    return res.status(200).json({ success: true, data: withdrawals });
+  } catch (err) {
+    console.error('[getWithdrawals]', err);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+}
+
 module.exports = {
   getInstructorCourses,
   createCourse,
   updateCourse,
   deleteCourse,
   getCourseStudents,
+  createWithdrawal,
+  getWithdrawals,
 };
+

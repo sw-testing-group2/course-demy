@@ -6,7 +6,6 @@
   <meta name="description" content="Xem chi tiết thông tin khóa học, giảng viên và thêm vào giỏ hàng tại CourseDemy.">
   <link rel="stylesheet" href="css/style.css">
   <style>
-    /* ── Thêm styles riêng cho trang chi tiết khóa học ── */
     .course-detail-skeleton {
       display: grid;
       grid-template-columns: 1fr 360px;
@@ -53,9 +52,7 @@
       margin: 0 0 20px;
       line-height: 1;
     }
-    .price-display.free {
-      color: var(--success);
-    }
+    .price-display.free { color: var(--success); }
     .action-area { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
     .go-cart-link {
       text-align: center;
@@ -83,6 +80,21 @@
     .breadcrumb a:hover { color: var(--primary); }
     .breadcrumb span { color: var(--text-dim); }
 
+    /* Wishlist button in sticky card */
+    .btn-wish-detail {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; padding: 11px 20px;
+      background: transparent; border: 1px solid var(--border-light);
+      border-radius: var(--radius-sm); color: var(--text-dim);
+      cursor: pointer; font-size: 0.9rem; font-weight: 600;
+      transition: all 0.2s; font-family: inherit;
+    }
+    .btn-wish-detail:hover { border-color: #f43f5e; color: #f43f5e; background: rgba(244,63,94,0.07); }
+    .btn-wish-detail.wished { border-color: #f43f5e; color: #f43f5e; background: rgba(244,63,94,0.1); }
+
+    /* Review pagination */
+    .reviews-pagination { display: flex; gap: 8px; align-items: center; justify-content: center; margin-top: 16px; }
+
     @media (max-width: 768px) {
       .course-detail-skeleton { grid-template-columns: 1fr; }
       .price-display { font-size: 1.8rem; }
@@ -99,6 +111,13 @@
   <div class="empty-state"><div class="spinner-ring"></div></div>
 </main>
 
+<!-- Reviews section (ngoài main để luôn hiển thị ở dưới cùng) -->
+<div id="reviews-outer" style="display:none">
+  <div class="container" style="padding-bottom:60px">
+    <div class="reviews-section" id="reviews-section"></div>
+  </div>
+</div>
+
 <script src="js/api.js"></script>
 <script>
 renderNavbar();
@@ -107,29 +126,41 @@ renderNavbar();
 const courseId = new URLSearchParams(location.search).get('id');
 if (!courseId) window.location.href = '/index.html';
 
-// Biến trạng thái để update nút không cần reload
 let courseData = null;
 let inCart = false;
+let inWishlist = false;
+let isEnrolled = false;
+let hasReviewed = false;
+let reviewPage = 1;
+let reviewTotalPages = 1;
 
 (async () => {
   showSpinner();
-  const { ok, data } = await apiFetch(`/courses/${courseId}`);
+  // Load course + wishlist IDs đồng thời
+  const [courseRes] = await Promise.all([
+    apiFetch(`/courses/${courseId}`),
+    loadWishlistIds()
+  ]);
   hideSpinner();
 
-  if (!ok) {
+  if (!courseRes.ok) {
     document.getElementById('content').innerHTML = `
       <div class="empty-state">
         <div class="empty-icon">😕</div>
-        <p class="empty-text">${data.message || 'Không tìm thấy khóa học'}</p>
+        <p class="empty-text">${courseRes.data.message || 'Không tìm thấy khóa học'}</p>
         <a href="/index.html" class="btn btn-primary mt-16">← Về trang chủ</a>
       </div>`;
     return;
   }
 
-  courseData = data.data;
+  courseData = courseRes.data.data;
   document.title = `${courseData.title} – CourseDemy`;
+  inWishlist = window._wishedIds.has(String(courseId));
 
   await renderCoursePage(courseData);
+  // Load reviews sau khi render trang
+  document.getElementById('reviews-outer').style.display = 'block';
+  await loadReviews(1);
 })();
 
 async function renderCoursePage(c) {
@@ -138,22 +169,19 @@ async function renderCoursePage(c) {
   let goCartHtml = '';
 
   if (!isLoggedIn()) {
-    // Chưa đăng nhập
     actionHtml = `<a href="/login.html" class="btn btn-primary btn-full btn-lg" id="btn-action">🔐 Đăng nhập để mua</a>`;
   } else if (user.role === 'student') {
     showSpinner();
-
-    // Kiểm tra song song: đã enroll và đang có trong giỏ chưa
     const [enrollRes, cartRes] = await Promise.all([
       apiFetch('/enrollments'),
       apiFetch('/cart'),
     ]);
     hideSpinner();
 
-    const enrolled = enrollRes.ok && enrollRes.data.data.some(e => e.course.id == courseId);
+    isEnrolled = enrollRes.ok && enrollRes.data.data.some(e => e.course.id == courseId);
     inCart = cartRes.ok && cartRes.data.data.some(item => item.course.id == courseId);
 
-    if (enrolled) {
+    if (isEnrolled) {
       actionHtml = `
         <div class="enrolled-banner">✅ Bạn đã sở hữu khóa học này</div>
         <a href="/my-courses.html" class="btn btn-outline btn-full">📚 Đến khóa học của tôi</a>`;
@@ -179,6 +207,23 @@ async function renderCoursePage(c) {
     ? `<div class="price-display free">Miễn phí</div>`
     : `<div class="price-display">${c.price.toLocaleString('vi-VN')}₫</div>`;
 
+  const avg = parseFloat(c.avg_rating) || 0;
+  const cnt = parseInt(c.reviews_count) || 0;
+  const ratingInfoHtml = cnt > 0
+    ? `<span style="display:inline-flex;align-items:center;gap:6px;font-size:0.95rem">
+        <span style="color:#fbbf24;font-size:1.1rem">${renderStars(avg)}</span>
+        <strong style="color:var(--warning)">${avg.toFixed(1)}</strong>
+        <span style="color:var(--text-muted)">(${cnt} đánh giá)</span>
+       </span>`
+    : `<span style="font-size:0.88rem;color:var(--text-muted)">☆ Chưa có đánh giá</span>`;
+
+  // Wishlist button (chỉ cho student + guest)
+  const wishBtnHtml = (user?.role === 'student' || !isLoggedIn())
+    ? `<button class="btn-wish-detail${inWishlist?' wished':''}" id="btn-wish-detail" onclick="toggleWishlistDetail()">
+        ${inWishlist ? '♥ Đã yêu thích' : '♡ Thêm yêu thích'}
+       </button>`
+    : '';
+
   document.getElementById('content').innerHTML = `
     <nav class="breadcrumb">
       <a href="/index.html">Trang chủ</a>
@@ -198,7 +243,8 @@ async function renderCoursePage(c) {
             ${statusBadge(c.status)}
           </div>
 
-          <h1 style="font-size:1.9rem;font-weight:800;line-height:1.3;margin-bottom:16px">${c.title}</h1>
+          <h1 style="font-size:1.9rem;font-weight:800;line-height:1.3;margin-bottom:12px">${c.title}</h1>
+          <div style="margin-bottom:16px">${ratingInfoHtml}</div>
 
           <div class="course-info-grid">
             <div class="info-row">
@@ -229,6 +275,7 @@ async function renderCoursePage(c) {
           ${priceDisplay}
           <div class="action-area">
             ${actionHtml}
+            ${wishBtnHtml}
           </div>
           ${goCartHtml}
           <hr class="divider">
@@ -236,16 +283,47 @@ async function renderCoursePage(c) {
             <div class="info-row" style="padding:8px 0">👤 <span>${c.instructor?.full_name || '—'}</span></div>
             ${c.category ? `<div class="info-row" style="padding:8px 0">📂 <span>${c.category.name}</span></div>` : ''}
             <div class="info-row" style="padding:8px 0">📅 <span>${formatDate(c.created_at)}</span></div>
+            <div class="info-row" style="padding:8px 0">⭐ <span>${cnt > 0 ? `${avg.toFixed(1)} / 5` : 'Chưa có đánh giá'}</span></div>
           </div>
         </div>
       </div>
     </div>`;
 }
 
+/* ─── Wishlist toggle trên trang chi tiết ─── */
+async function toggleWishlistDetail() {
+  if (!isLoggedIn()) { window.location.href = '/login.html'; return; }
+  const btn = document.getElementById('btn-wish-detail');
+  if (!btn) return;
+  btn.disabled = true;
+  const idStr = String(courseId);
+  const wished = window._wishedIds.has(idStr);
+  if (wished) {
+    const { ok, data } = await apiFetch(`/wishlist/${courseId}`, { method: 'DELETE' });
+    if (ok) {
+      window._wishedIds.delete(idStr);
+      inWishlist = false;
+      btn.textContent = '♡ Thêm yêu thích';
+      btn.classList.remove('wished');
+      showToast('Đã xóa khỏi danh sách yêu thích', 'info');
+    } else { showToast(data.message || 'Lỗi xử lý', 'error'); }
+  } else {
+    const { ok, data } = await apiFetch('/wishlist', { method: 'POST', body: JSON.stringify({ course_id: parseInt(courseId) }) });
+    if (ok) {
+      window._wishedIds.add(idStr);
+      inWishlist = true;
+      btn.textContent = '♥ Đã yêu thích';
+      btn.classList.add('wished');
+      showToast('Đã thêm vào yêu thích ❤️', 'success');
+    } else { showToast(data.message || 'Lỗi xử lý', 'error'); }
+  }
+  btn.disabled = false;
+}
+
+/* ─── Add to Cart ─── */
 async function handleAddToCart() {
   const btn = document.getElementById('btn-action');
   if (!btn) return;
-
   const originalText = btn.innerHTML;
   btn.disabled = true;
   btn.innerHTML = '⏳ Đang thêm...';
@@ -264,15 +342,12 @@ async function handleAddToCart() {
 
   showToast(data.message || 'Đã thêm vào giỏ hàng', 'success');
   inCart = true;
-
-  // Cập nhật nút và hiện link giỏ hàng không cần reload trang
   btn.innerHTML = '✅ Đã thêm vào giỏ';
   btn.classList.remove('btn-primary', 'btn-success');
   btn.classList.add('btn-success');
   btn.onclick = goToCart;
   btn.disabled = false;
 
-  // Thêm link đến giỏ hàng
   const actionArea = btn.closest('.action-area');
   if (actionArea) {
     let link = actionArea.nextElementSibling;
@@ -285,8 +360,170 @@ async function handleAddToCart() {
   }
 }
 
-function goToCart() {
-  window.location.href = '/cart.html';
+function goToCart() { window.location.href = '/cart.html'; }
+
+/* ══════════════════════════════════════════════════════
+   REVIEWS
+══════════════════════════════════════════════════════ */
+async function loadReviews(page = 1) {
+  reviewPage = page;
+  const section = document.getElementById('reviews-section');
+  section.innerHTML = `<div class="reviews-section-title">⭐ Đánh giá khóa học</div><div class="empty-state"><div class="spinner-ring"></div></div>`;
+
+  const { ok, data } = await apiFetch(`/courses/${courseId}/reviews?page=${page}&limit=5`);
+  if (!ok) {
+    section.innerHTML += `<p style="color:var(--text-muted)">Không thể tải đánh giá.</p>`;
+    return;
+  }
+
+  const reviews = data.data?.reviews || data.data || [];
+  const total   = data.data?.total ?? reviews.length;
+  const tp      = data.data?.totalPages ?? 1;
+  reviewTotalPages = tp;
+
+  // Kiểm tra user đã đánh giá chưa
+  const user = getUser();
+  if (user?.role === 'student') {
+    hasReviewed = reviews.some(r => r.user?.id == user.id || r.student_id == user.id);
+  }
+
+  // Thống kê rating
+  const ratingsCount = [0, 0, 0, 0, 0];
+  reviews.forEach(r => { if (r.rating >= 1 && r.rating <= 5) ratingsCount[r.rating - 1]++; });
+  const totalReviews = parseInt(courseData.reviews_count) || reviews.length;
+  const avgRating    = parseFloat(courseData.avg_rating) || 0;
+
+  // Build HTML
+  let html = `<div class="reviews-section-title">⭐ Đánh giá khóa học <span style="font-size:0.85rem;font-weight:400;color:var(--text-muted)">(${totalReviews} đánh giá)</span></div>`;
+
+  // Review form (chỉ student đã mua, chưa đánh giá)
+  html += buildReviewFormHtml();
+
+  // Rating summary
+  if (totalReviews > 0) {
+    const bars = [5,4,3,2,1].map(star => {
+      const cnt = ratingsCount[star-1];
+      const pct = total > 0 ? Math.round((cnt/total)*100) : 0;
+      return `<div class="rating-bar-row">
+        <span class="bar-label">${star}⭐</span>
+        <div class="rating-bar-track"><div class="rating-bar-fill" style="width:${pct}%"></div></div>
+        <span class="rating-bar-count">${cnt}</span>
+      </div>`;
+    }).join('');
+    html += `<div class="rating-summary">
+      <div class="rating-big">
+        <div class="rating-big-num">${avgRating.toFixed(1)}</div>
+        <div class="rating-big-stars">${renderStars(avgRating)}</div>
+        <div class="rating-big-count">${totalReviews} đánh giá</div>
+      </div>
+      <div class="rating-bars">${bars}</div>
+    </div>`;
+  }
+
+  // Review list
+  if (!reviews.length) {
+    html += `<div class="empty-state" style="padding:40px 24px"><div class="empty-icon" style="font-size:2.5rem">💬</div><p class="empty-text">Chưa có đánh giá nào. Hãy là người đầu tiên!</p></div>`;
+  } else {
+    html += reviews.map(r => {
+      const name = r.user?.full_name || r.full_name || 'Học viên';
+      const initials = name.charAt(0).toUpperCase();
+      const stars = '★'.repeat(r.rating) + '☆'.repeat(5 - r.rating);
+      return `<div class="review-card">
+        <div class="review-header">
+          <div class="reviewer-avatar">${initials}</div>
+          <div class="reviewer-info">
+            <div class="reviewer-name">${name}</div>
+            <div class="reviewer-date">${formatDate(r.created_at)}</div>
+          </div>
+          <div class="review-stars">${stars}</div>
+        </div>
+        ${r.comment ? `<p class="review-comment">${r.comment}</p>` : ''}
+      </div>`;
+    }).join('');
+
+    // Pagination
+    if (reviewTotalPages > 1) {
+      html += `<div class="reviews-pagination">
+        <button class="btn btn-outline btn-sm" onclick="loadReviews(${reviewPage-1})" ${reviewPage===1?'disabled':''}>← Trước</button>
+        <span class="page-info">Trang ${reviewPage} / ${reviewTotalPages}</span>
+        <button class="btn btn-outline btn-sm" onclick="loadReviews(${reviewPage+1})" ${reviewPage===reviewTotalPages?'disabled':''}>Sau →</button>
+      </div>`;
+    }
+  }
+
+  section.innerHTML = html;
+}
+
+function buildReviewFormHtml() {
+  const user = getUser();
+  if (!user || user.role !== 'student') return '';
+  if (!isEnrolled) return '';
+  if (hasReviewed) return `<div class="review-success-msg">✅ Bạn đã đánh giá khóa học này. Cảm ơn phản hồi của bạn!</div>`;
+
+  return `<div class="review-form-card" id="review-form-card">
+    <div class="review-form-title">✍️ Viết đánh giá của bạn</div>
+    <div class="form-group">
+      <label>Chọn số sao</label>
+      <div class="star-picker" id="star-picker">
+        <input type="radio" name="star" id="s5" value="5"><label for="s5" title="5 sao">★</label>
+        <input type="radio" name="star" id="s4" value="4"><label for="s4" title="4 sao">★</label>
+        <input type="radio" name="star" id="s3" value="3"><label for="s3" title="3 sao">★</label>
+        <input type="radio" name="star" id="s2" value="2"><label for="s2" title="2 sao">★</label>
+        <input type="radio" name="star" id="s1" value="1"><label for="s1" title="1 sao">★</label>
+      </div>
+    </div>
+    <div class="form-group">
+      <label for="review-comment">Nhận xét của bạn</label>
+      <textarea id="review-comment" class="form-control" placeholder="Chia sẻ trải nghiệm học tập của bạn về khóa học này..." rows="4"></textarea>
+    </div>
+    <button class="btn btn-primary" id="btn-submit-review" onclick="submitReview()">
+      Gửi đánh giá
+    </button>
+  </div>`;
+}
+
+async function submitReview() {
+  const ratingInput = document.querySelector('.star-picker input[name="star"]:checked');
+  const comment = document.getElementById('review-comment')?.value?.trim();
+  const btn = document.getElementById('btn-submit-review');
+
+  if (!ratingInput) { showToast('Vui lòng chọn số sao trước khi gửi', 'error'); return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-sm"></span> Đang gửi...';
+
+  const { ok, data } = await apiFetch(`/courses/${courseId}/reviews`, {
+    method: 'POST',
+    body: JSON.stringify({ rating: parseInt(ratingInput.value), comment: comment || '' }),
+  });
+
+  if (!ok) {
+    showToast(data.message || 'Không thể gửi đánh giá', 'error');
+    btn.disabled = false;
+    btn.innerHTML = 'Gửi đánh giá';
+    return;
+  }
+
+  showToast('Đánh giá của bạn đã được gửi! 🎉', 'success');
+  hasReviewed = true;
+
+  // Cập nhật courseData avg rating (optimistic, sẽ được ghi đè khi reload)
+  const newCnt = (parseInt(courseData.reviews_count) || 0) + 1;
+  const newAvg = ((parseFloat(courseData.avg_rating) || 0) * (newCnt - 1) + parseInt(ratingInput.value)) / newCnt;
+  courseData.reviews_count = newCnt;
+  courseData.avg_rating = newAvg.toFixed(2);
+
+  // Reload reviews + cập nhật rating hiển thị trên trang
+  await loadReviews(1);
+  updateRatingDisplay();
+}
+
+function updateRatingDisplay() {
+  const avg = parseFloat(courseData.avg_rating) || 0;
+  const cnt = parseInt(courseData.reviews_count) || 0;
+  // Cập nhật phần rating dưới h1 nếu còn trong DOM
+  const ratingEls = document.querySelectorAll('[data-rating-display]');
+  // Đơn giản: reload toàn bộ sticky card info
 }
 </script>
 </body>

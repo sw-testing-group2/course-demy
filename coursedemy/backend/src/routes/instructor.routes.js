@@ -9,6 +9,8 @@ const {
   updateCourse,
   deleteCourse,
   getCourseStudents,
+  createWithdrawal,
+  getWithdrawals,
 } = require('../controllers/instructor.controller');
 
 // Tất cả routes yêu cầu authenticate + role instructor
@@ -29,4 +31,12 @@ router.delete('/courses/:id', deleteCourse);
 // GET  /api/instructor/courses/:id/students
 router.get('/courses/:id/students', getCourseStudents);
 
+// ── Withdrawals ───────────────────────────────────────────────────────────────
+// POST /api/instructor/withdrawals — yêu cầu rút tiền
+router.post('/withdrawals', createWithdrawal);
+
+// GET  /api/instructor/withdrawals — lịch sử yêu cầu rút tiền
+router.get('/withdrawals', getWithdrawals);
+
 module.exports = router;
+

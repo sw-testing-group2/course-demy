@@ -69,6 +69,70 @@ db.exec(`
     enrolled_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(user_id, course_id)
   );
+
+  CREATE TABLE IF NOT EXISTS wishlists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    course_id INTEGER NOT NULL REFERENCES courses(id),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(user_id, course_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS reviews (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    course_id INTEGER NOT NULL REFERENCES courses(id),
+    rating INTEGER NOT NULL CHECK(rating BETWEEN 1 AND 5),
+    comment TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(user_id, course_id)
+  );
+`);
+
+// ── Thêm cột balance vào bảng users nếu chưa có ──────────────────────────────
+const userColumns = db.prepare("PRAGMA table_info('users')").all();
+if (!userColumns.find((col) => col.name === 'balance')) {
+  db.exec(`ALTER TABLE users ADD COLUMN balance REAL NOT NULL DEFAULT 0`);
+}
+
+// ── Thêm cột payment_method vào bảng orders nếu chưa có ──────────────────────
+const orderColumns = db.prepare("PRAGMA table_info('orders')").all();
+if (!orderColumns.find((col) => col.name === 'payment_method')) {
+  db.exec(`ALTER TABLE orders ADD COLUMN payment_method TEXT DEFAULT NULL`);
+}
+
+// ── Thêm cột coupon_id vào bảng orders nếu chưa có ───────────────────────────
+if (!orderColumns.find((col) => col.name === 'coupon_id')) {
+  db.exec(`ALTER TABLE orders ADD COLUMN coupon_id INTEGER DEFAULT NULL`);
+}
+
+// ── Tạo bảng wallet_transactions ──────────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS wallet_transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    amount REAL NOT NULL,
+    type TEXT NOT NULL CHECK(type IN ('deposit','payment','withdrawal','refund','income')),
+    status TEXT NOT NULL DEFAULT 'success' CHECK(status IN ('pending','success','failed')),
+    description TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
+// ── Tạo bảng withdrawal_requests ──────────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS withdrawal_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    instructor_id INTEGER NOT NULL REFERENCES users(id),
+    amount REAL NOT NULL,
+    bank_name TEXT NOT NULL,
+    account_number TEXT NOT NULL,
+    account_holder TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','approved','rejected')),
+    reason TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    processed_at TEXT
+  );
 `);
 
 console.log('Database connected');

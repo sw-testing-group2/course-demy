@@ -298,6 +298,187 @@ function deleteCategory(req, res) {
   }
 }
 
+// ══════════════════════════════════════════════════════
+//  WITHDRAWAL MANAGEMENT
+// ══════════════════════════════════════════════════════
+
+// ─── GET /api/admin/withdrawals ──────────────────────────────────────────────
+function getAdminWithdrawals(req, res) {
+  try {
+    const { status } = req.query;
+
+    let query = `
+      SELECT
+        wr.id,
+        wr.amount,
+        wr.bank_name,
+        wr.account_number,
+        wr.account_holder,
+        wr.status,
+        wr.reason,
+        wr.created_at,
+        wr.processed_at,
+        u.full_name,
+        u.email
+      FROM withdrawal_requests wr
+      JOIN users u ON wr.instructor_id = u.id
+    `;
+    const params = [];
+
+    if (status) {
+      query += ' WHERE wr.status = ?';
+      params.push(status);
+    }
+
+    query += ' ORDER BY wr.created_at DESC';
+
+    const rows = db.prepare(query).all(...params);
+
+    const data = rows.map((row) => ({
+      id:             row.id,
+      amount:         row.amount,
+      bank_name:      row.bank_name,
+      account_number: row.account_number,
+      account_holder: row.account_holder,
+      status:         row.status,
+      reason:         row.reason,
+      created_at:     row.created_at,
+      processed_at:   row.processed_at,
+      instructor: {
+        full_name: row.full_name,
+        email:     row.email,
+      },
+    }));
+
+    return res.status(200).json({ success: true, data });
+  } catch (err) {
+    console.error('[getAdminWithdrawals]', err);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+}
+
+// ─── PUT /api/admin/withdrawals/:id/approve ──────────────────────────────────
+function approveWithdrawal(req, res) {
+  const withdrawalId = parseInt(req.params.id);
+
+  try {
+    const withdrawal = db.prepare('SELECT id, status, instructor_id, amount FROM withdrawal_requests WHERE id = ?')
+      .get(withdrawalId);
+
+    if (!withdrawal) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy yêu cầu rút tiền',
+      });
+    }
+
+    if (withdrawal.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: 'Yêu cầu đã được xử lý từ trước',
+      });
+    }
+
+    const doApprove = db.transaction(() => {
+      // 1. Cập nhật withdrawal_requests
+      db.prepare(`
+        UPDATE withdrawal_requests
+        SET status = 'approved', processed_at = datetime('now')
+        WHERE id = ?
+      `).run(withdrawalId);
+
+      // 2. Cập nhật wallet_transactions tương ứng
+      db.prepare(`
+        UPDATE wallet_transactions
+        SET status = 'success'
+        WHERE user_id = ? AND type = 'withdrawal' AND status = 'pending' AND amount = ?
+      `).run(withdrawal.instructor_id, withdrawal.amount);
+    });
+
+    doApprove();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Đã phê duyệt yêu cầu rút tiền',
+    });
+  } catch (err) {
+    console.error('[approveWithdrawal]', err);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+}
+
+// ─── PUT /api/admin/withdrawals/:id/reject ───────────────────────────────────
+function rejectWithdrawal(req, res) {
+  const withdrawalId = parseInt(req.params.id);
+  const { reason } = req.body;
+
+  if (!reason) {
+    return res.status(400).json({
+      success: false,
+      message: 'Vui lòng cung cấp lý do từ chối',
+    });
+  }
+
+  try {
+    const withdrawal = db.prepare('SELECT id, status, instructor_id, amount FROM withdrawal_requests WHERE id = ?')
+      .get(withdrawalId);
+
+    if (!withdrawal) {
+      return res.status(404).json({
+        success: false,
+        message: 'Không tìm thấy yêu cầu rút tiền',
+      });
+    }
+
+    if (withdrawal.status !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: 'Yêu cầu đã được xử lý từ trước',
+      });
+    }
+
+    const doReject = db.transaction(() => {
+      // 1. Cập nhật withdrawal_requests
+      db.prepare(`
+        UPDATE withdrawal_requests
+        SET status = 'rejected', reason = ?, processed_at = datetime('now')
+        WHERE id = ?
+      `).run(reason, withdrawalId);
+
+      // 2. Cập nhật wallet_transactions tương ứng thành failed
+      db.prepare(`
+        UPDATE wallet_transactions
+        SET status = 'failed', description = ?
+        WHERE user_id = ? AND type = 'withdrawal' AND status = 'pending' AND amount = ?
+      `).run(`Từ chối rút tiền: ${reason}`, withdrawal.instructor_id, withdrawal.amount);
+
+      // 3. Hoàn tiền lại vào ví giảng viên
+      db.prepare('UPDATE users SET balance = balance + ? WHERE id = ?')
+        .run(withdrawal.amount, withdrawal.instructor_id);
+
+      // 4. Ghi giao dịch hoàn tiền
+      db.prepare(`
+        INSERT INTO wallet_transactions (user_id, amount, type, status, description)
+        VALUES (?, ?, 'refund', 'success', ?)
+      `).run(
+        withdrawal.instructor_id,
+        withdrawal.amount,
+        `Hoàn tiền yêu cầu rút tiền bị từ chối #${withdrawalId}`
+      );
+    });
+
+    doReject();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Đã từ chối yêu cầu rút tiền',
+    });
+  } catch (err) {
+    console.error('[rejectWithdrawal]', err);
+    return res.status(500).json({ success: false, message: 'Lỗi server' });
+  }
+}
+
 module.exports = {
   getPendingCourses,
   approveCourse,
@@ -307,4 +488,8 @@ module.exports = {
   createCategory,
   updateCategory,
   deleteCategory,
+  getAdminWithdrawals,
+  approveWithdrawal,
+  rejectWithdrawal,
 };
+

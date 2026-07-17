@@ -60,13 +60,23 @@ function getCourses(req, res) {
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
 
-    // ── Đếm tổng để tính totalPages ────────────────────────────────────────
+    // ── HAVING clause lọc theo avg_rating (optional) ────────────────────────
+    const ratingMin    = req.query.rating ? parseFloat(req.query.rating) : null;
+    const havingClause = ratingMin ? `HAVING COALESCE(AVG(rv.rating), 0) >= ?` : '';
+    const havingParams = ratingMin ? [ratingMin] : [];
+
+    // ── Đếm tổng — dùng sub-query để COUNT chính xác khi có HAVING ─────────
     const countSQL = `
-      SELECT COUNT(*) AS total
-      FROM courses c
-      ${whereClause}
+      SELECT COUNT(*) AS total FROM (
+        SELECT c.id
+        FROM courses c
+        LEFT JOIN reviews rv ON rv.course_id = c.id
+        ${whereClause}
+        GROUP BY c.id
+        ${havingClause}
+      )
     `;
-    const { total } = db.prepare(countSQL).get(...params);
+    const { total } = db.prepare(countSQL).get(...params, ...havingParams);
 
     // ── Lấy dữ liệu có LIMIT/OFFSET ───────────────────────────────────────
     const dataSQL = `
@@ -81,25 +91,32 @@ function getCourses(req, res) {
         cat.id   AS category_id,
         cat.name AS category_name,
         u.id        AS instructor_id,
-        u.full_name AS instructor_name
+        u.full_name AS instructor_name,
+        COALESCE(ROUND(AVG(rv.rating), 1), 0) AS avg_rating,
+        COUNT(rv.id)                           AS reviews_count
       FROM courses c
       LEFT JOIN categories cat ON c.category_id = cat.id
       LEFT JOIN users u        ON c.instructor_id = u.id
+      LEFT JOIN reviews rv     ON rv.course_id = c.id
       ${whereClause}
+      GROUP BY c.id
+      ${havingClause}
       ORDER BY c.created_at DESC
       LIMIT ? OFFSET ?
     `;
-    const rows = db.prepare(dataSQL).all(...params, limitNum, offset);
+    const rows = db.prepare(dataSQL).all(...params, ...havingParams, limitNum, offset);
 
     // ── Reshape rows → nested objects ──────────────────────────────────────
     const courses = rows.map((row) => ({
-      id:          row.id,
-      title:       row.title,
-      description: row.description,
-      price:       row.price,
-      thumbnail:   row.thumbnail,
-      status:      row.status,
-      created_at:  row.created_at,
+      id:            row.id,
+      title:         row.title,
+      description:   row.description,
+      price:         row.price,
+      thumbnail:     row.thumbnail,
+      status:        row.status,
+      created_at:    row.created_at,
+      avg_rating:    row.avg_rating,
+      reviews_count: row.reviews_count,
       category: {
         id:   row.category_id,
         name: row.category_name,
@@ -143,11 +160,15 @@ function getCourseById(req, res) {
         cat.name AS category_name,
         u.id        AS instructor_id,
         u.full_name AS instructor_name,
-        u.email     AS instructor_email
+        u.email     AS instructor_email,
+        COALESCE(ROUND(AVG(rv.rating), 1), 0) AS avg_rating,
+        COUNT(rv.id)                           AS reviews_count
       FROM courses c
       LEFT JOIN categories cat ON c.category_id = cat.id
       LEFT JOIN users u        ON c.instructor_id = u.id
+      LEFT JOIN reviews rv     ON rv.course_id = c.id
       WHERE c.id = ?
+      GROUP BY c.id
     `).get(id);
 
     if (!row) {
@@ -160,8 +181,8 @@ function getCourseById(req, res) {
     // Chỉ cho xem khóa học đã được duyệt (ngoại trừ admin và giảng viên sở hữu)
     if (row.status !== 'approved') {
       const user = req.user; // có thể undefined nếu chưa đăng nhập
-      const isAdmin      = user && user.role === 'admin';
-      const isOwner      = user && user.role === 'instructor' && user.id === row.instructor_id;
+      const isAdmin = user && user.role === 'admin';
+      const isOwner = user && user.role === 'instructor' && user.id === row.instructor_id;
       if (!isAdmin && !isOwner) {
         return res.status(404).json({
           success: false,
@@ -171,13 +192,15 @@ function getCourseById(req, res) {
     }
 
     const course = {
-      id:          row.id,
-      title:       row.title,
-      description: row.description,
-      price:       row.price,
-      thumbnail:   row.thumbnail,
-      status:      row.status,
-      created_at:  row.created_at,
+      id:            row.id,
+      title:         row.title,
+      description:   row.description,
+      price:         row.price,
+      thumbnail:     row.thumbnail,
+      status:        row.status,
+      created_at:    row.created_at,
+      avg_rating:    row.avg_rating,
+      reviews_count: row.reviews_count,
       category: {
         id:   row.category_id,
         name: row.category_name,

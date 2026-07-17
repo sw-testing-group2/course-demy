@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Ví doanh thu – CourseDemy</title>
+  <meta name="description" content="Quản lý doanh thu và yêu cầu rút tiền của giảng viên trên CourseDemy.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav id="navbar"></nav>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<main class="container section">
+  <div class="page-header">
+    <h1 class="page-title">💰 Ví doanh thu giảng viên</h1>
+    <p class="page-subtitle">Theo dõi doanh thu và yêu cầu rút tiền</p>
+  </div>
+
+  <!-- Balance Hero -->
+  <div class="wallet-hero">
+    <div>
+      <div class="wallet-balance-label">Số dư doanh thu</div>
+      <div class="wallet-balance-amount" id="balance-display">—</div>
+      <div class="wallet-balance-sub" id="balance-sub">Đang tải...</div>
+    </div>
+    <div class="wallet-hero-icon">🏆</div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:400px 1fr;gap:28px;align-items:start" id="instructor-wallet-layout">
+
+    <!-- Withdrawal Form -->
+    <div class="finance-card" id="wd-form-card">
+      <div class="finance-card-title">🏦 Yêu cầu rút tiền</div>
+
+      <div class="form-group">
+        <label for="wd-amount">Số tiền muốn rút (VNĐ)</label>
+        <input type="number" id="wd-amount" class="form-control" placeholder="Nhập số tiền..." min="10000" step="1000" oninput="validateAmount()">
+        <div id="wd-amount-err" class="form-error" style="display:none"></div>
+      </div>
+      <div class="form-group">
+        <label for="wd-bank">Tên ngân hàng</label>
+        <input type="text" id="wd-bank" class="form-control" placeholder="VD: Vietcombank, MB Bank...">
+      </div>
+      <div class="form-group">
+        <label for="wd-account">Số tài khoản</label>
+        <input type="text" id="wd-account" class="form-control" placeholder="Nhập số tài khoản...">
+      </div>
+      <div class="form-group">
+        <label for="wd-name">Tên chủ tài khoản</label>
+        <input type="text" id="wd-name" class="form-control" placeholder="Nhập tên chủ tài khoản...">
+      </div>
+
+      <button class="btn btn-primary btn-full" id="btn-withdraw" onclick="doWithdraw()">
+        🏦 Gửi yêu cầu rút tiền
+      </button>
+      <div id="wd-error" class="form-error" style="margin-top:10px;display:none"></div>
+    </div>
+
+    <!-- Withdrawal History -->
+    <div>
+      <div class="section-header" style="margin-bottom:16px">
+        <h2 class="section-title">📋 Lịch sử yêu cầu rút tiền</h2>
+        <button class="btn btn-outline btn-sm" onclick="loadWithdrawals(1)">🔄 Làm mới</button>
+      </div>
+      <div id="wd-container">
+        <div class="empty-state"><div class="spinner-ring"></div></div>
+      </div>
+      <div class="pagination" id="wd-pagination"></div>
+    </div>
+  </div>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+if (!requireAuth('/login.html')) throw 0;
+if (!requireRole('instructor', '/index.html')) throw 0;
+
+renderNavbar('instructor-wallet');
+
+let currentBalance = 0;
+let wdPage = 1, wdTotalPages = 1;
+
+(async () => {
+  await Promise.all([loadBalance(), loadWithdrawals(1)]);
+})();
+
+async function loadBalance() {
+  const { ok, data } = await apiFetch('/wallet/balance');
+  if (!ok) {
+    document.getElementById('balance-display').textContent = 'Lỗi tải';
+    document.getElementById('balance-sub').textContent = '';
+    return;
+  }
+  currentBalance = data.data?.balance ?? data.balance ?? 0;
+  document.getElementById('balance-display').textContent = Number(currentBalance).toLocaleString('vi-VN') + '₫';
+  document.getElementById('balance-sub').textContent = 'Cập nhật ' + new Date().toLocaleTimeString('vi-VN');
+}
+
+function validateAmount() {
+  const val = parseInt(document.getElementById('wd-amount').value) || 0;
+  const errEl = document.getElementById('wd-amount-err');
+  if (val > 0 && val > currentBalance) {
+    errEl.textContent = `Số tiền vượt quá số dư hiện tại (${Number(currentBalance).toLocaleString('vi-VN')}₫)`;
+    errEl.style.display = 'block';
+    return false;
+  }
+  errEl.style.display = 'none';
+  return true;
+}
+
+async function doWithdraw() {
+  const errEl  = document.getElementById('wd-error');
+  const btn    = document.getElementById('btn-withdraw');
+  errEl.style.display = 'none';
+
+  const amount      = parseInt(document.getElementById('wd-amount').value);
+  const bank_name   = document.getElementById('wd-bank').value.trim();
+  const account_num = document.getElementById('wd-account').value.trim();
+  const account_name = document.getElementById('wd-name').value.trim();
+
+  if (!amount || amount < 10000) { errEl.textContent = 'Số tiền tối thiểu 10,000₫'; errEl.style.display = 'block'; return; }
+  if (!bank_name) { errEl.textContent = 'Vui lòng nhập tên ngân hàng'; errEl.style.display = 'block'; return; }
+  if (!account_num) { errEl.textContent = 'Vui lòng nhập số tài khoản'; errEl.style.display = 'block'; return; }
+  if (!account_name) { errEl.textContent = 'Vui lòng nhập tên chủ tài khoản'; errEl.style.display = 'block'; return; }
+  if (!validateAmount()) return;
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-sm"></span> Đang gửi...';
+
+  const { ok, data } = await apiFetch('/instructor/withdrawals', {
+    method: 'POST',
+    body: JSON.stringify({ amount, bank_name, account_number: account_num, account_name }),
+  });
+
+  btn.disabled = false;
+  btn.innerHTML = '🏦 Gửi yêu cầu rút tiền';
+
+  if (!ok) {
+    errEl.textContent = data.message || 'Gửi yêu cầu thất bại';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  showToast('Đã gửi yêu cầu rút tiền thành công! ✅', 'success');
+
+  // Reset form
+  ['wd-amount', 'wd-bank', 'wd-account', 'wd-name'].forEach(id => { document.getElementById(id).value = ''; });
+
+  await Promise.all([loadBalance(), loadWithdrawals(1)]);
+}
+
+async function loadWithdrawals(page = 1) {
+  wdPage = page;
+  const container = document.getElementById('wd-container');
+  container.innerHTML = `<div class="empty-state" style="padding:32px 0"><div class="spinner-ring"></div></div>`;
+
+  const { ok, data } = await apiFetch(`/instructor/withdrawals?page=${page}&limit=10`);
+  if (!ok) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">😕</div><p class="empty-text">Không thể tải lịch sử.</p></div>`;
+    return;
+  }
+
+  const list = data.data?.withdrawals ?? data.data ?? [];
+  const tp   = data.data?.totalPages ?? 1;
+  wdTotalPages = tp;
+
+  if (!list.length) {
+    container.innerHTML = `<div class="empty-state" style="padding:40px 0"><div class="empty-icon">📭</div><p class="empty-text">Chưa có yêu cầu rút tiền nào.</p></div>`;
+    document.getElementById('wd-pagination').innerHTML = '';
+    return;
+  }
+
+  const statusBadgeWd = (s) => {
+    const cfg = {
+      pending:  { cls: 'wd-pending',  label: '⏳ Chờ duyệt' },
+      approved: { cls: 'wd-approved', label: '✅ Đã duyệt' },
+      rejected: { cls: 'wd-rejected', label: '❌ Bị từ chối' },
+    };
+    const c = cfg[s] || { cls: '', label: s };
+    return `<span class="badge ${c.cls}">${c.label}</span>`;
+  };
+
+  container.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>Số tiền</th>
+          <th>Ngân hàng</th>
+          <th>Số TK</th>
+          <th>Trạng thái</th>
+          <th>Lý do từ chối</th>
+          <th>Ngày tạo</th>
+          <th>Ngày xử lý</th>
+        </tr></thead>
+        <tbody>
+          ${list.map(wd => `<tr>
+            <td class="amount-out">${Number(wd.amount).toLocaleString('vi-VN')}₫</td>
+            <td>${wd.bank_name || '—'}</td>
+            <td style="font-size:.85rem;color:var(--text-dim)">${wd.account_number || '—'}</td>
+            <td>${statusBadgeWd(wd.status)}</td>
+            <td style="color:var(--danger);font-size:.83rem;max-width:160px">${wd.rejection_reason || '—'}</td>
+            <td style="color:var(--text-muted);font-size:.82rem;white-space:nowrap">${formatDate(wd.created_at)}</td>
+            <td style="color:var(--text-muted);font-size:.82rem;white-space:nowrap">${wd.processed_at ? formatDate(wd.processed_at) : '—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`;
+
+  const pag = document.getElementById('wd-pagination');
+  if (wdTotalPages <= 1) { pag.innerHTML = ''; return; }
+  pag.innerHTML = `
+    <button class="btn btn-outline btn-sm" onclick="loadWithdrawals(${wdPage-1})" ${wdPage===1?'disabled':''}>← Trước</button>
+    <span class="page-info">Trang ${wdPage} / ${wdTotalPages}</span>
+    <button class="btn btn-outline btn-sm" onclick="loadWithdrawals(${wdPage+1})" ${wdPage===wdTotalPages?'disabled':''}>Sau →</button>`;
+}
+
+// Responsive
+function adjustLayout() {
+  const el = document.getElementById('instructor-wallet-layout');
+  if (window.innerWidth <= 768) el.style.gridTemplateColumns = '1fr';
+  else el.style.gridTemplateColumns = '400px 1fr';
+}
+window.addEventListener('resize', adjustLayout);
+adjustLayout();
+</script>
+</body>
+</html>

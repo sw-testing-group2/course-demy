@@ -426,3 +426,335 @@ tbody tr:hover { background: var(--bg-hover); }
   .container     { padding: 0 16px; }
   .auth-card     { padding: 28px 20px; }
 }
+
+/* ══════════════════════════════════════════════════════
+   WISHLIST HEART BUTTON
+══════════════════════════════════════════════════════ */
+.card-thumb-wrap { position: relative; }
+.wish-btn {
+  position: absolute; top: 8px; right: 8px;
+  width: 34px; height: 34px; border-radius: 50%;
+  background: rgba(10,15,30,0.75); backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,0.15);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.2s ease;
+  font-size: 1rem; line-height: 1; z-index: 2;
+  color: var(--text-dim);
+}
+.wish-btn:hover { transform: scale(1.15); background: rgba(30,20,40,0.9); }
+.wish-btn.wished { color: #f43f5e; border-color: rgba(244,63,94,0.4); }
+.wish-btn.wished svg, .wish-btn svg { pointer-events: none; }
+
+/* ══════════════════════════════════════════════════════
+   STAR RATING DISPLAY (read-only)
+══════════════════════════════════════════════════════ */
+.star-display {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.82rem; color: var(--text-dim);
+}
+.star-display .stars { color: #fbbf24; letter-spacing: 1px; font-size: 0.9rem; }
+.star-display .rating-val { font-weight: 700; color: var(--warning); }
+.star-display .rating-count { color: var(--text-muted); }
+
+/* ══════════════════════════════════════════════════════
+   STAR FILTER (index sidebar)
+══════════════════════════════════════════════════════ */
+.star-filter-wrap {
+  display: flex; align-items: center; gap: 6px; flex-shrink: 0;
+}
+.star-filter-wrap label { font-size: 0.85rem; color: var(--text-dim); white-space: nowrap; }
+.star-filter-select {
+  min-width: 170px; cursor: pointer;
+}
+
+/* ══════════════════════════════════════════════════════
+   INTERACTIVE STAR PICKER (review form)
+══════════════════════════════════════════════════════ */
+.star-picker {
+  display: flex; flex-direction: row-reverse; gap: 4px; width: fit-content;
+}
+.star-picker input[type="radio"] { display: none; }
+.star-picker label {
+  font-size: 2rem; cursor: pointer; color: var(--border-light);
+  transition: color 0.15s ease, transform 0.15s ease;
+  user-select: none;
+}
+.star-picker label:hover,
+.star-picker label:hover ~ label,
+.star-picker input:checked ~ label {
+  color: #fbbf24;
+}
+.star-picker label:hover { transform: scale(1.2); }
+
+/* ══════════════════════════════════════════════════════
+   REVIEW CARDS
+══════════════════════════════════════════════════════ */
+.reviews-section { margin-top: 48px; }
+.reviews-section-title {
+  font-size: 1.3rem; font-weight: 700; margin-bottom: 20px;
+  display: flex; align-items: center; gap: 10px;
+}
+.review-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 20px 24px;
+  margin-bottom: 16px; transition: border-color 0.2s;
+}
+.review-card:hover { border-color: var(--border-light); }
+.review-header {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 10px;
+}
+.reviewer-avatar {
+  width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--primary-dark), #a78bfa);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.9rem; color: #fff;
+}
+.reviewer-info { flex: 1; }
+.reviewer-name { font-weight: 600; font-size: 0.95rem; }
+.reviewer-date { font-size: 0.78rem; color: var(--text-muted); margin-top: 2px; }
+.review-stars { color: #fbbf24; font-size: 1rem; letter-spacing: 2px; }
+.review-comment { color: var(--text-dim); line-height: 1.7; font-size: 0.92rem; margin-top: 8px; }
+
+/* Review form */
+.review-form-card {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 28px;
+  margin-bottom: 28px;
+}
+.review-form-title { font-size: 1.1rem; font-weight: 700; margin-bottom: 20px; }
+.review-success-msg {
+  display: flex; align-items: center; gap: 12px;
+  padding: 16px 20px; background: var(--success-bg);
+  border: 1px solid var(--success); border-radius: var(--radius-sm);
+  color: var(--success); font-weight: 600; margin-bottom: 28px;
+}
+
+/* Inline spinner (small) */
+.spinner-sm {
+  width: 18px; height: 18px; border: 3px solid rgba(255,255,255,0.3);
+  border-top-color: #fff; border-radius: 50%;
+  animation: spin 0.7s linear infinite; display: inline-block;
+  vertical-align: middle; margin-right: 6px;
+}
+
+/* Rating summary bar */
+.rating-summary {
+  display: flex; align-items: center; gap: 16px;
+  padding: 20px; background: var(--bg-card);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  margin-bottom: 24px;
+}
+.rating-big {
+  text-align: center; min-width: 80px;
+}
+.rating-big-num {
+  font-size: 3rem; font-weight: 800; color: var(--warning); line-height: 1;
+}
+.rating-big-stars { font-size: 1.1rem; color: #fbbf24; margin: 4px 0; }
+.rating-big-count { font-size: 0.8rem; color: var(--text-muted); }
+.rating-bars { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.rating-bar-row {
+  display: flex; align-items: center; gap: 8px; font-size: 0.8rem;
+}
+.rating-bar-row .bar-label { color: var(--text-dim); min-width: 32px; }
+.rating-bar-track {
+  flex: 1; height: 8px; background: var(--border);
+  border-radius: 100px; overflow: hidden;
+}
+.rating-bar-fill {
+  height: 100%; background: #fbbf24; border-radius: 100px;
+  transition: width 0.5s ease;
+}
+.rating-bar-count { color: var(--text-muted); min-width: 24px; text-align: right; }
+
+/* ══════════════════════════════════════════════════════
+   WISHLIST PAGE
+══════════════════════════════════════════════════════ */
+.wishlist-empty {
+  text-align: center; padding: 80px 24px;
+  display: flex; flex-direction: column; align-items: center; gap: 20px;
+}
+.wishlist-empty-icon { font-size: 5rem; opacity: 0.4; }
+.wishlist-empty-text { font-size: 1.1rem; color: var(--text-dim); max-width: 380px; line-height: 1.6; }
+.wishlist-card-remove {
+  display: flex; align-items: center; gap: 6px;
+  width: 100%; justify-content: center;
+  padding: 8px 14px; border-radius: var(--radius-sm);
+  background: transparent; border: 1px solid var(--border-light);
+  color: var(--danger); cursor: pointer; font-size: 0.82rem;
+  font-weight: 600; transition: all 0.2s; margin-top: 8px;
+}
+.wishlist-card-remove:hover { background: var(--danger-bg); border-color: var(--danger); }
+
+/* Wishlist header section */
+.wishlist-header {
+  padding: 32px 0 0;
+}
+.wishlist-title {
+  font-size: 1.8rem; font-weight: 800; letter-spacing: -0.5px;
+  margin-bottom: 4px;
+}
+.wishlist-subtitle { color: var(--text-dim); margin-bottom: 28px; }
+
+/* Nav wishlist link highlight */
+.nav-link-wish { position: relative; }
+
+/* ══════════════════════════════════════════════════════
+   WALLET / FINANCE PAGES
+══════════════════════════════════════════════════════ */
+.wallet-hero {
+  background: linear-gradient(135deg, rgba(99,102,241,0.18) 0%, rgba(167,139,250,0.12) 100%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 36px 40px;
+  margin-bottom: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+}
+.wallet-balance-label {
+  font-size: 0.88rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin-bottom: 8px;
+}
+.wallet-balance-amount {
+  font-size: 3rem;
+  font-weight: 800;
+  background: linear-gradient(135deg, var(--primary), #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  line-height: 1.1;
+}
+.wallet-balance-sub {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-top: 6px;
+}
+.wallet-hero-icon {
+  font-size: 4rem;
+  opacity: 0.4;
+}
+
+/* Deposit / Withdraw form card */
+.finance-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 28px;
+  margin-bottom: 28px;
+}
+.finance-card-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Transaction table amount colors */
+.amount-in  { color: var(--success); font-weight: 700; }
+.amount-out { color: var(--danger);  font-weight: 700; }
+
+/* Tx type badge */
+.tx-type {
+  display: inline-flex; align-items: center; padding: 3px 10px;
+  border-radius: 100px; font-size: 0.75rem; font-weight: 600;
+}
+.tx-deposit  { background: rgba(52,211,153,0.12); color: var(--success); }
+.tx-payment  { background: rgba(248,113,113,0.12); color: var(--danger); }
+.tx-refund   { background: rgba(56,189,248,0.12);  color: var(--info); }
+.tx-withdraw { background: rgba(251,191,36,0.12);  color: var(--warning); }
+
+/* Payment method radio cards */
+.payment-methods { display: flex; flex-direction: column; gap: 12px; margin: 16px 0; }
+.payment-method-card {
+  display: flex; align-items: center; gap: 16px;
+  padding: 16px 20px;
+  border: 2px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: all 0.2s;
+  background: var(--bg-card);
+}
+.payment-method-card:has(input:checked) {
+  border-color: var(--primary);
+  background: rgba(99,102,241,0.07);
+}
+.payment-method-card.disabled-method {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.payment-method-card input[type="radio"] {
+  accent-color: var(--primary);
+  width: 18px; height: 18px;
+  flex-shrink: 0;
+}
+.payment-method-icon { font-size: 1.6rem; flex-shrink: 0; }
+.payment-method-info { flex: 1; }
+.payment-method-name { font-weight: 600; font-size: 0.95rem; }
+.payment-method-desc { font-size: 0.8rem; color: var(--text-dim); margin-top: 2px; }
+.wallet-insufficient {
+  font-size: 0.82rem;
+  color: var(--danger);
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.wallet-insufficient a { color: var(--danger); font-weight: 700; text-decoration: underline; }
+
+/* Withdrawal status badges */
+.wd-pending  { background: rgba(251,191,36,0.12);  color: var(--warning); }
+.wd-approved { background: rgba(52,211,153,0.12);  color: var(--success); }
+.wd-rejected { background: rgba(248,113,113,0.12); color: var(--danger); }
+
+/* Admin filter bar for withdrawals */
+.status-tabs {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+.status-tab {
+  padding: 7px 18px; border-radius: 100px;
+  border: 1px solid var(--border-light);
+  background: transparent; color: var(--text-dim);
+  cursor: pointer; font-size: 0.85rem; font-weight: 600;
+  transition: all 0.18s; font-family: inherit;
+}
+.status-tab:hover { border-color: var(--primary); color: var(--primary); }
+.status-tab.active {
+  background: var(--primary-dark); border-color: var(--primary-dark);
+  color: #fff;
+}
+
+/* Reject modal */
+.reject-modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.75);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 2000; padding: 24px;
+  backdrop-filter: blur(4px);
+  animation: fadeIn 0.2s ease;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.reject-modal-box {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 32px;
+  width: 100%; max-width: 480px;
+  box-shadow: var(--shadow-lg);
+  animation: fadeInScale 0.2s ease;
+}
+
+/* Responsive wallet */
+@media (max-width: 768px) {
+  .wallet-hero { padding: 24px 20px; }
+  .wallet-balance-amount { font-size: 2.2rem; }
+  .wallet-hero-icon { display: none; }
+}
+

@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Ví tiền – CourseDemy</title>
+  <meta name="description" content="Quản lý ví tiền, nạp tiền và xem lịch sử giao dịch của bạn trên CourseDemy.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav id="navbar"></nav>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<main class="container section">
+  <div class="page-header">
+    <h1 class="page-title">💰 Ví tiền của tôi</h1>
+    <p class="page-subtitle">Nạp tiền và theo dõi lịch sử giao dịch</p>
+  </div>
+
+  <!-- Balance Hero -->
+  <div class="wallet-hero" id="wallet-hero">
+    <div>
+      <div class="wallet-balance-label">Số dư hiện tại</div>
+      <div class="wallet-balance-amount" id="balance-display">—</div>
+      <div class="wallet-balance-sub" id="balance-sub">Đang tải...</div>
+    </div>
+    <div class="wallet-hero-icon">💳</div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:360px 1fr;gap:28px;align-items:start" id="wallet-layout">
+    <!-- Deposit Form -->
+    <div class="finance-card">
+      <div class="finance-card-title">➕ Nạp tiền vào ví</div>
+      <div class="form-group">
+        <label for="deposit-amount">Số tiền muốn nạp (VNĐ)</label>
+        <input type="number" id="deposit-amount" class="form-control" placeholder="Nhập số tiền..." min="10000" step="1000">
+        <div class="form-hint">Tối thiểu 10,000₫ — Mô phỏng nạp tiền giả lập</div>
+      </div>
+
+      <!-- Quick amount buttons -->
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
+        <button class="btn btn-outline btn-sm" onclick="setAmount(50000)">50K</button>
+        <button class="btn btn-outline btn-sm" onclick="setAmount(100000)">100K</button>
+        <button class="btn btn-outline btn-sm" onclick="setAmount(200000)">200K</button>
+        <button class="btn btn-outline btn-sm" onclick="setAmount(500000)">500K</button>
+        <button class="btn btn-outline btn-sm" onclick="setAmount(1000000)">1M</button>
+      </div>
+
+      <button class="btn btn-primary btn-full" id="btn-deposit" onclick="doDeposit()">
+        💳 Nạp tiền ngay
+      </button>
+
+      <div id="deposit-error" class="form-error" style="margin-top:10px;display:none"></div>
+    </div>
+
+    <!-- Transaction History -->
+    <div>
+      <div class="section-header" style="margin-bottom:16px">
+        <h2 class="section-title">📋 Lịch sử giao dịch</h2>
+        <button class="btn btn-outline btn-sm" onclick="loadTransactions(1)">🔄 Làm mới</button>
+      </div>
+      <div id="tx-container">
+        <div class="empty-state"><div class="spinner-ring"></div></div>
+      </div>
+      <div class="pagination" id="tx-pagination"></div>
+    </div>
+  </div>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+if (!requireAuth('/login.html')) throw 0;
+if (!requireRole('student', '/index.html')) throw 0;
+
+renderNavbar('wallet');
+
+let txPage = 1, txTotalPages = 1;
+
+// Init
+(async () => {
+  await Promise.all([loadBalance(), loadTransactions(1)]);
+})();
+
+async function loadBalance() {
+  const { ok, data } = await apiFetch('/wallet/balance');
+  if (!ok) {
+    document.getElementById('balance-display').textContent = 'Lỗi tải';
+    document.getElementById('balance-sub').textContent = '';
+    return;
+  }
+  const balance = data.data?.balance ?? data.balance ?? 0;
+  document.getElementById('balance-display').textContent = Number(balance).toLocaleString('vi-VN') + '₫';
+  document.getElementById('balance-sub').textContent = 'Cập nhật ' + new Date().toLocaleTimeString('vi-VN');
+  return balance;
+}
+
+async function loadTransactions(page = 1) {
+  txPage = page;
+  const container = document.getElementById('tx-container');
+  container.innerHTML = `<div class="empty-state" style="padding:32px 0"><div class="spinner-ring"></div></div>`;
+
+  const { ok, data } = await apiFetch(`/wallet/transactions?page=${page}&limit=10`);
+  if (!ok) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">😕</div><p class="empty-text">Không thể tải lịch sử giao dịch.</p></div>`;
+    return;
+  }
+
+  const txs = data.data?.transactions ?? data.data ?? [];
+  const tp  = data.data?.totalPages ?? 1;
+  txTotalPages = tp;
+
+  if (!txs.length) {
+    container.innerHTML = `<div class="empty-state" style="padding:40px 0"><div class="empty-icon">📭</div><p class="empty-text">Chưa có giao dịch nào.</p></div>`;
+    document.getElementById('tx-pagination').innerHTML = '';
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>#</th>
+          <th>Loại giao dịch</th>
+          <th>Số tiền</th>
+          <th>Trạng thái</th>
+          <th>Mô tả</th>
+          <th>Thời gian</th>
+        </tr></thead>
+        <tbody>
+          ${txs.map((tx, i) => {
+            const isIn = ['deposit','refund'].includes(tx.type);
+            const amtClass = isIn ? 'amount-in' : 'amount-out';
+            const amtSign  = isIn ? '+' : '−';
+            const typeCls  = { deposit: 'tx-deposit', payment: 'tx-payment', refund: 'tx-refund', withdraw: 'tx-withdraw' }[tx.type] || '';
+            const typeLabel = { deposit: '💳 Nạp tiền', payment: '🛒 Thanh toán', refund: '↩️ Hoàn tiền', withdraw: '🏦 Rút tiền' }[tx.type] || tx.type;
+            const statusBadge = tx.status === 'success'
+              ? `<span class="badge badge-success">Thành công</span>`
+              : `<span class="badge badge-danger">Thất bại</span>`;
+            return `<tr>
+              <td style="color:var(--text-muted);font-size:.8rem">#${tx.id ?? (i+1)}</td>
+              <td><span class="tx-type ${typeCls}">${typeLabel}</span></td>
+              <td class="${amtClass}">${amtSign}${Number(tx.amount).toLocaleString('vi-VN')}₫</td>
+              <td>${statusBadge}</td>
+              <td style="color:var(--text-dim);font-size:.85rem;max-width:200px">${tx.description || '—'}</td>
+              <td style="color:var(--text-muted);font-size:.82rem;white-space:nowrap">${formatDate(tx.created_at)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+
+  // Pagination
+  const pag = document.getElementById('tx-pagination');
+  if (txTotalPages <= 1) { pag.innerHTML = ''; return; }
+  pag.innerHTML = `
+    <button class="btn btn-outline btn-sm" onclick="loadTransactions(${txPage-1})" ${txPage===1?'disabled':''}>← Trước</button>
+    <span class="page-info">Trang ${txPage} / ${txTotalPages}</span>
+    <button class="btn btn-outline btn-sm" onclick="loadTransactions(${txPage+1})" ${txPage===txTotalPages?'disabled':''}>Sau →</button>`;
+}
+
+function setAmount(val) {
+  document.getElementById('deposit-amount').value = val;
+}
+
+async function doDeposit() {
+  const amountInput = document.getElementById('deposit-amount');
+  const errEl = document.getElementById('deposit-error');
+  const btn = document.getElementById('btn-deposit');
+  const amount = parseInt(amountInput.value);
+
+  errEl.style.display = 'none';
+
+  if (!amount || amount < 10000) {
+    errEl.textContent = 'Vui lòng nhập số tiền tối thiểu 10,000₫';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-sm"></span> Đang xử lý...';
+
+  const { ok, data } = await apiFetch('/wallet/deposit', {
+    method: 'POST',
+    body: JSON.stringify({ amount }),
+  });
+
+  btn.disabled = false;
+  btn.innerHTML = '💳 Nạp tiền ngay';
+
+  if (!ok) {
+    errEl.textContent = data.message || 'Nạp tiền thất bại. Vui lòng thử lại.';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  showToast(`Nạp tiền thành công! +${amount.toLocaleString('vi-VN')}₫ 🎉`, 'success');
+  amountInput.value = '';
+  await Promise.all([loadBalance(), loadTransactions(1)]);
+}
+
+// Responsive layout
+function adjustLayout() {
+  const layout = document.getElementById('wallet-layout');
+  if (window.innerWidth <= 768) {
+    layout.style.gridTemplateColumns = '1fr';
+  } else {
+    layout.style.gridTemplateColumns = '360px 1fr';
+  }
+}
+window.addEventListener('resize', adjustLayout);
+adjustLayout();
+</script>
+</body>
+</html>

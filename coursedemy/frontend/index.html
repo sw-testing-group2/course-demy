@@ -27,6 +27,16 @@
     <select id="category-filter" class="form-control filter-select">
       <option value="">Tất cả danh mục</option>
     </select>
+    <div class="star-filter-wrap">
+      <label for="rating-filter">⭐ Đánh giá:</label>
+      <select id="rating-filter" class="form-control star-filter-select">
+        <option value="">Tất cả</option>
+        <option value="4">4 sao trở lên</option>
+        <option value="3">3 sao trở lên</option>
+        <option value="2">2 sao trở lên</option>
+        <option value="1">1 sao trở lên</option>
+      </select>
+    </div>
     <div style="display:flex;gap:8px;align-items:center">
       <label style="font-size:.85rem;color:var(--text-dim);white-space:nowrap">Giá tối đa:</label>
       <input id="max-price" type="number" class="form-control" style="width:140px" placeholder="Không giới hạn">
@@ -48,7 +58,12 @@ let currentPage = 1, totalPages = 1;
 
 renderNavbar();
 loadCategories();
-loadCourses();
+
+// Load wishlist IDs trước khi render cards để nút tim hiển thị đúng
+(async () => {
+  await loadWishlistIds();
+  loadCourses();
+})();
 
 async function loadCategories() {
   const { ok, data } = await apiFetch('/categories');
@@ -59,13 +74,15 @@ async function loadCategories() {
 
 async function loadCourses(page = 1) {
   showSpinner();
-  const search    = document.getElementById('search-input').value.trim();
+  const searchVal = document.getElementById('search-input').value.trim();
   const catId     = document.getElementById('category-filter').value;
   const maxPrice  = document.getElementById('max-price').value;
+  const rating    = document.getElementById('rating-filter').value;
   let qs = `?page=${page}&limit=9`;
-  if (search)   qs += `&search=${encodeURIComponent(search)}`;
-  if (catId)    qs += `&category_id=${catId}`;
-  if (maxPrice) qs += `&maxPrice=${maxPrice}`;
+  if (searchVal) qs += `&search=${encodeURIComponent(searchVal)}`;
+  if (catId)     qs += `&category_id=${catId}`;
+  if (maxPrice)  qs += `&maxPrice=${maxPrice}`;
+  if (rating)    qs += `&rating=${rating}`;
 
   const { ok, data } = await apiFetch(`/courses${qs}`);
   hideSpinner();
@@ -100,9 +117,12 @@ function resetFilters() {
   document.getElementById('search-input').value = '';
   document.getElementById('category-filter').value = '';
   document.getElementById('max-price').value = '';
+  document.getElementById('rating-filter').value = '';
   loadCourses(1);
 }
 document.getElementById('search-input').addEventListener('keydown', e => { if (e.key==='Enter') search(); });
+document.getElementById('rating-filter').addEventListener('change', () => loadCourses(1));
+document.getElementById('category-filter').addEventListener('change', () => loadCourses(1));
 </script>
 </body>
 </html>

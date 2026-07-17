@@ -28,6 +28,9 @@ const orderRoutes      = require('./routes/order.routes');
 const enrollmentRoutes = require('./routes/enrollment.routes');
 const instructorRoutes = require('./routes/instructor.routes');
 const adminRoutes      = require('./routes/admin.routes');
+const wishlistRoutes   = require('./routes/wishlist.routes');
+const walletRoutes     = require('./routes/wallet.routes');
+const paymentsRoutes   = require('./routes/payments.routes');
 
 app.use('/api/auth',        authRoutes);
 app.use('/api/categories',  coursesRoutes);
@@ -37,6 +40,9 @@ app.use('/api/orders',      orderRoutes);
 app.use('/api/enrollments', enrollmentRoutes);
 app.use('/api/instructor',  instructorRoutes);
 app.use('/api/admin',       adminRoutes);
+app.use('/api/wishlist',    wishlistRoutes);
+app.use('/api/wallet',      walletRoutes);
+app.use('/api/payments',   paymentsRoutes);
 
 // ─── Khởi động server ─────────────────────────────────────────────────────
 app.listen(PORT, () => {

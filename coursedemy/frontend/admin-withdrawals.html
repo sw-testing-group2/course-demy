@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Quản lý rút tiền – CourseDemy Admin</title>
+  <meta name="description" content="Phê duyệt và từ chối yêu cầu rút tiền của giảng viên trên CourseDemy.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav id="navbar"></nav>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<!-- Reject Reason Modal -->
+<div id="reject-modal" class="reject-modal-overlay" style="display:none">
+  <div class="reject-modal-box">
+    <div class="modal-header">
+      <h3 class="modal-title">❌ Từ chối yêu cầu rút tiền</h3>
+      <button class="modal-close" onclick="closeRejectModal()">✕</button>
+    </div>
+    <p style="color:var(--text-dim);font-size:0.9rem;margin-bottom:20px">
+      Vui lòng nhập lý do từ chối để giảng viên được thông báo.
+    </p>
+    <div class="form-group">
+      <label for="reject-reason">Lý do từ chối</label>
+      <textarea id="reject-reason" class="form-control" placeholder="Nhập lý do từ chối..." rows="3"></textarea>
+      <div id="reject-reason-err" class="form-error" style="display:none">Vui lòng nhập lý do từ chối</div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:4px">
+      <button class="btn btn-ghost btn-full" onclick="closeRejectModal()">Huỷ</button>
+      <button class="btn btn-danger btn-full" id="btn-confirm-reject" onclick="confirmReject()">❌ Xác nhận từ chối</button>
+    </div>
+  </div>
+</div>
+
+<main class="container section">
+  <div class="page-header">
+    <h1 class="page-title">💸 Quản lý yêu cầu rút tiền</h1>
+    <p class="page-subtitle">Phê duyệt hoặc từ chối yêu cầu rút tiền của giảng viên</p>
+  </div>
+
+  <!-- Stats row -->
+  <div class="stats-grid" id="wd-stats" style="margin-bottom:24px">
+    <div class="stat-card">
+      <div class="stat-icon">⏳</div>
+      <div class="stat-value" id="stat-pending" style="color:var(--warning)">—</div>
+      <div class="stat-label">Chờ duyệt</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">✅</div>
+      <div class="stat-value" id="stat-approved" style="color:var(--success)">—</div>
+      <div class="stat-label">Đã duyệt</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">❌</div>
+      <div class="stat-value" id="stat-rejected" style="color:var(--danger)">—</div>
+      <div class="stat-label">Bị từ chối</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-icon">💰</div>
+      <div class="stat-value" id="stat-total" style="font-size:1.4rem">—</div>
+      <div class="stat-label">Tổng tiền đã duyệt (₫)</div>
+    </div>
+  </div>
+
+  <!-- Status filter tabs -->
+  <div class="status-tabs" id="status-tabs">
+    <button class="status-tab active" data-status="" onclick="setFilter('')">Tất cả</button>
+    <button class="status-tab" data-status="pending" onclick="setFilter('pending')">⏳ Chờ duyệt</button>
+    <button class="status-tab" data-status="approved" onclick="setFilter('approved')">✅ Đã duyệt</button>
+    <button class="status-tab" data-status="rejected" onclick="setFilter('rejected')">❌ Bị từ chối</button>
+  </div>
+
+  <!-- Withdrawals table -->
+  <div id="wd-container">
+    <div class="empty-state"><div class="spinner-ring"></div></div>
+  </div>
+  <div class="pagination" id="wd-pagination"></div>
+</main>
+
+<script src="js/api.js"></script>
+<script>
+if (!requireAuth('/login.html')) throw 0;
+if (!requireRole('admin', '/index.html')) throw 0;
+
+renderNavbar('admin-withdrawals');
+
+let currentFilter = '';
+let wdPage = 1, wdTotalPages = 1;
+let pendingRejectId = null;
+
+(async () => {
+  await Promise.all([loadStats(), loadWithdrawals(1)]);
+})();
+
+async function loadStats() {
+  const { ok, data } = await apiFetch('/admin/withdrawals');
+  if (!ok) return;
+  const all = data.data?.withdrawals ?? data.data ?? [];
+
+  const pending  = all.filter(w => w.status === 'pending').length;
+  const approved = all.filter(w => w.status === 'approved').length;
+  const rejected = all.filter(w => w.status === 'rejected').length;
+  const totalApproved = all
+    .filter(w => w.status === 'approved')
+    .reduce((s, w) => s + Number(w.amount), 0);
+
+  document.getElementById('stat-pending').textContent  = pending;
+  document.getElementById('stat-approved').textContent = approved;
+  document.getElementById('stat-rejected').textContent = rejected;
+  document.getElementById('stat-total').textContent    = totalApproved.toLocaleString('vi-VN');
+}
+
+function setFilter(status) {
+  currentFilter = status;
+  // Update tab active state
+  document.querySelectorAll('.status-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.status === status);
+  });
+  loadWithdrawals(1);
+}
+
+async function loadWithdrawals(page = 1) {
+  wdPage = page;
+  const container = document.getElementById('wd-container');
+  container.innerHTML = `<div class="empty-state" style="padding:40px 0"><div class="spinner-ring"></div></div>`;
+
+  let qs = `?page=${page}&limit=15`;
+  if (currentFilter) qs += `&status=${currentFilter}`;
+
+  const { ok, data } = await apiFetch(`/admin/withdrawals${qs}`);
+  if (!ok) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">😕</div><p class="empty-text">Không thể tải dữ liệu.</p></div>`;
+    return;
+  }
+
+  const list = data.data?.withdrawals ?? data.data ?? [];
+  const tp   = data.data?.totalPages ?? 1;
+  wdTotalPages = tp;
+
+  if (!list.length) {
+    container.innerHTML = `<div class="empty-state" style="padding:48px 0"><div class="empty-icon">📭</div><p class="empty-text">Không có yêu cầu nào phù hợp.</p></div>`;
+    document.getElementById('wd-pagination').innerHTML = '';
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th>#ID</th>
+          <th>Giảng viên</th>
+          <th>Số tiền</th>
+          <th>Ngân hàng</th>
+          <th>Số TK</th>
+          <th>Chủ TK</th>
+          <th>Trạng thái</th>
+          <th>Lý do từ chối</th>
+          <th>Ngày tạo</th>
+          <th>Thao tác</th>
+        </tr></thead>
+        <tbody id="wd-tbody">
+          ${list.map(wd => buildRow(wd)).join('')}
+        </tbody>
+      </table>
+    </div>`;
+
+  const pag = document.getElementById('wd-pagination');
+  if (wdTotalPages <= 1) { pag.innerHTML = ''; return; }
+  pag.innerHTML = `
+    <button class="btn btn-outline btn-sm" onclick="loadWithdrawals(${wdPage-1})" ${wdPage===1?'disabled':''}>← Trước</button>
+    <span class="page-info">Trang ${wdPage} / ${wdTotalPages}</span>
+    <button class="btn btn-outline btn-sm" onclick="loadWithdrawals(${wdPage+1})" ${wdPage===wdTotalPages?'disabled':''}>Sau →</button>`;
+}
+
+function buildRow(wd) {
+  const statusCfg = {
+    pending:  { cls: 'wd-pending',  label: '⏳ Chờ duyệt' },
+    approved: { cls: 'wd-approved', label: '✅ Đã duyệt' },
+    rejected: { cls: 'wd-rejected', label: '❌ Bị từ chối' },
+  };
+  const s = statusCfg[wd.status] || { cls: '', label: wd.status };
+
+  const actions = wd.status === 'pending'
+    ? `<div class="td-actions">
+        <button class="btn btn-sm btn-success" onclick="doApprove(${wd.id})">✅ Duyệt</button>
+        <button class="btn btn-sm btn-outline-danger" onclick="openRejectModal(${wd.id})">❌ Từ chối</button>
+       </div>`
+    : `<span style="font-size:.82rem;color:var(--text-muted)">Đã xử lý</span>`;
+
+  return `<tr id="wd-row-${wd.id}">
+    <td style="color:var(--text-muted);font-size:.82rem">#${wd.id}</td>
+    <td>
+      <div style="font-weight:600">${wd.instructor?.full_name || wd.user?.full_name || '—'}</div>
+      <div style="font-size:.78rem;color:var(--text-muted)">${wd.instructor?.email || wd.user?.email || ''}</div>
+    </td>
+    <td class="amount-out" style="white-space:nowrap">${Number(wd.amount).toLocaleString('vi-VN')}₫</td>
+    <td>${wd.bank_name || '—'}</td>
+    <td style="font-size:.85rem;color:var(--text-dim)">${wd.account_number || '—'}</td>
+    <td style="font-size:.85rem">${wd.account_name || '—'}</td>
+    <td><span class="badge ${s.cls}">${s.label}</span></td>
+    <td style="color:var(--danger);font-size:.82rem;max-width:160px">${wd.rejection_reason || '—'}</td>
+    <td style="color:var(--text-muted);font-size:.82rem;white-space:nowrap">${formatDate(wd.created_at)}</td>
+    <td>${actions}</td>
+  </tr>`;
+}
+
+async function doApprove(id) {
+  if (!confirm(`Xác nhận duyệt yêu cầu rút tiền #${id}?`)) return;
+
+  showSpinner();
+  const { ok, data } = await apiFetch(`/admin/withdrawals/${id}/approve`, { method: 'PUT' });
+  hideSpinner();
+
+  if (!ok) { showToast(data.message || 'Duyệt thất bại', 'error'); return; }
+
+  showToast(`Đã duyệt yêu cầu #${id} thành công ✅`, 'success');
+  await Promise.all([loadStats(), loadWithdrawals(wdPage)]);
+}
+
+function openRejectModal(id) {
+  pendingRejectId = id;
+  document.getElementById('reject-reason').value = '';
+  document.getElementById('reject-reason-err').style.display = 'none';
+  document.getElementById('reject-modal').style.display = 'flex';
+  setTimeout(() => document.getElementById('reject-reason').focus(), 100);
+}
+
+function closeRejectModal() {
+  document.getElementById('reject-modal').style.display = 'none';
+  pendingRejectId = null;
+}
+
+async function confirmReject() {
+  const reason = document.getElementById('reject-reason').value.trim();
+  const errEl  = document.getElementById('reject-reason-err');
+  const btn    = document.getElementById('btn-confirm-reject');
+
+  if (!reason) { errEl.style.display = 'block'; return; }
+  errEl.style.display = 'none';
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-sm"></span> Đang xử lý...';
+
+  const { ok, data } = await apiFetch(`/admin/withdrawals/${pendingRejectId}/reject`, {
+    method: 'PUT',
+    body: JSON.stringify({ reason }),
+  });
+
+  btn.disabled = false;
+  btn.innerHTML = '❌ Xác nhận từ chối';
+
+  if (!ok) { showToast(data.message || 'Từ chối thất bại', 'error'); return; }
+
+  showToast(`Đã từ chối yêu cầu #${pendingRejectId}`, 'info');
+  closeRejectModal();
+  await Promise.all([loadStats(), loadWithdrawals(wdPage)]);
+}
+
+// Close modal on overlay click
+document.getElementById('reject-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeRejectModal();
+});
+</script>
+</body>
+</html>
