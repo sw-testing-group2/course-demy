@@ -112,11 +112,11 @@ Vì phần frontend được tích hợp chung và phục vụ tĩnh từ backen
 ## 🧪 Kiểm Thử API với Postman
 
 Để bắt đầu viết testcase hoặc chạy thử API bằng Postman:
-1. Đọc hướng dẫn thiết lập Environment và danh sách 50+ API mẫu tại file [HUONGDAN_CHAY_VA_TEST.md](file:///c:/Users/quang/Workspace/KTPM/HUONGDAN_CHAY_VA_TEST.md).
+1. Đọc hướng dẫn thiết lập Environment và danh sách 50+ API mẫu tại file [HUONGDAN_CHAY_VA_TEST.md].
 2. Tạo các biến môi trường trên Postman gồm `base_url` (`http://localhost:3000/api`), `token_student`, `token_instructor`, `token_admin` để lưu JWT sau khi đăng nhập thành công.
 
 ---
 
 ## 📖 Tài Liệu Chi Tiết
-* Để xem chi tiết cấu trúc database, danh sách tham số truyền vào của từng API: Đọc [KeHoach_CourseDemy.md](file:///c:/Users/quang/Workspace/KTPM/KeHoach_CourseDemy.md).
-* Để xem hướng dẫn từng bước chạy testcase trên Postman: Đọc [HUONGDAN_CHAY_VA_TEST.md](file:///c:/Users/quang/Workspace/KTPM/HUONGDAN_CHAY_VA_TEST.md).
+* Để xem chi tiết cấu trúc database, danh sách tham số truyền vào của từng API: Đọc [KeHoach_CourseDemy.md].
+* Để xem hướng dẫn từng bước chạy testcase trên Postman: Đọc [HUONGDAN_CHAY_VA_TEST.md].

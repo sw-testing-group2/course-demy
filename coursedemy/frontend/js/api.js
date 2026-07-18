@@ -203,12 +203,18 @@ function renderNavbar(activePage = '') {
         <a href="/admin-dashboard.html" class="nav-link ${activePage==='admin-dashboard'?'active':''}">📊 Tổng quan</a>
         <a href="/admin-users.html" class="nav-link ${activePage==='admin-users'?'active':''}">👥 Người dùng</a>
         <a href="/admin.html" class="nav-link ${activePage==='admin'?'active':''}">⚙️ Admin</a>
-        <a href="/admin-withdrawals.html" class="nav-link ${activePage==='admin-withdrawals'?'active':''}">&#128176; Rút tiền</a>`;
+        <a href="/admin-withdrawals.html" class="nav-link ${activePage==='admin-withdrawals'?'active':''}">&#128176; Rút tiền</a>
+        <a href="/admin-notifications.html" class="nav-link ${activePage==='admin-notifications'?'active':''}">📢 Thông báo</a>`;
+
     }
     rightHtml = `
       ${roleLinks}
       <a href="/profile.html" class="nav-avatar" title="Hồ sơ của tôi">
-        <span class="avatar-circle">${user.full_name.charAt(0).toUpperCase()}</span>
+        ${user.avatar
+          ? `<img src="${user.avatar}" class="avatar-circle" style="object-fit:cover;padding:0" alt="Avatar"
+               onerror="this.outerHTML='<span class=\'avatar-circle\'>${user.full_name.charAt(0).toUpperCase()}</span>'">`
+          : `<span class="avatar-circle">${user.full_name.charAt(0).toUpperCase()}</span>`
+        }
       </a>
       <button onclick="logout()" class="btn btn-sm btn-outline-danger">Đăng xuất</button>`;
   } else {

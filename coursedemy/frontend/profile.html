@@ -2,91 +2,606 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Hồ sơ – CourseDemy</title>
+  <title>Hồ sơ cá nhân – CourseDemy</title>
+  <meta name="description" content="Quản lý hồ sơ cá nhân, đổi mật khẩu và ảnh đại diện trên CourseDemy.">
   <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* ── Profile layout ─────────────────────────────────────── */
+    .profile-layout {
+      display: grid;
+      grid-template-columns: 260px 1fr;
+      gap: 28px;
+      align-items: start;
+    }
+    .profile-sidebar {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 20px;
+      text-align: center;
+      position: sticky;
+      top: 80px;
+    }
+    .profile-avatar-wrap {
+      position: relative;
+      display: inline-block;
+      margin-bottom: 16px;
+    }
+    .profile-avatar-img {
+      width: 88px; height: 88px; border-radius: 50%;
+      object-fit: cover;
+      border: 3px solid var(--primary-dark);
+      display: block;
+    }
+    .profile-avatar-initials {
+      width: 88px; height: 88px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary-dark), #a78bfa);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 2.2rem; font-weight: 800; color: #fff;
+      border: 3px solid var(--primary-dark);
+    }
+    .profile-name { font-size: 1.05rem; font-weight: 700; margin-bottom: 4px; }
+    .profile-email { font-size: .82rem; color: var(--text-dim); margin-bottom: 10px; word-break: break-all; }
+    .profile-nav { display: flex; flex-direction: column; gap: 4px; margin-top: 20px; text-align: left; }
+    .profile-nav-btn {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 14px; border-radius: var(--radius-sm);
+      font-size: .88rem; font-weight: 600; color: var(--text-dim);
+      background: transparent; border: none; cursor: pointer;
+      font-family: inherit; transition: all .15s; width: 100%; text-align: left;
+    }
+    .profile-nav-btn:hover { background: var(--bg-2); color: var(--text); }
+    .profile-nav-btn.active { background: var(--primary-glow); color: var(--primary); }
+    .profile-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+    }
+    .section-heading {
+      font-size: 1rem; font-weight: 700; margin-bottom: 6px;
+    }
+    .section-sub {
+      font-size: .84rem; color: var(--text-dim); margin-bottom: 24px;
+    }
+    /* ── Avatar preview ────────────────────────────────────── */
+    .avatar-preview-wrap {
+      display: flex; align-items: center; gap: 16px; margin-bottom: 16px;
+    }
+    .avatar-preview-img {
+      width: 64px; height: 64px; border-radius: 50%; object-fit: cover;
+      border: 2px solid var(--border); background: var(--bg-2);
+      display: none;
+    }
+    .avatar-preview-initials {
+      width: 64px; height: 64px; border-radius: 50%;
+      background: linear-gradient(135deg, var(--primary-dark), #a78bfa);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; font-weight: 800; color: #fff; flex-shrink: 0;
+    }
+    /* ── Password field with eye icon ──────────────────────── */
+    .pw-wrap {
+      position: relative;
+    }
+    .pw-wrap .form-control {
+      padding-right: 44px;
+    }
+    .pw-eye {
+      position: absolute;
+      right: 12px; top: 50%; transform: translateY(-50%);
+      background: none; border: none; cursor: pointer;
+      color: var(--text-muted); font-size: 1.1rem; padding: 0;
+      line-height: 1; transition: color .15s;
+    }
+    .pw-eye:hover { color: var(--text); }
+    /* ── Inline field error ─────────────────────────────────── */
+    .field-error {
+      display: none;
+      font-size: .8rem;
+      color: var(--danger);
+      margin-top: 5px;
+    }
+    .field-error.show { display: block; }
+    .form-control.invalid {
+      border-color: var(--danger);
+      box-shadow: 0 0 0 3px rgba(248,113,113,.18);
+    }
+    /* ── Global form message (success/error) ────────────────── */
+    .form-banner {
+      padding: 12px 16px;
+      border-radius: var(--radius-sm);
+      font-size: .87rem;
+      margin-bottom: 18px;
+      display: none;
+    }
+    .form-banner.show  { display: block; }
+    .form-banner.ok    { background: var(--success-bg); border:1px solid var(--success); color: var(--success); }
+    .form-banner.err   { background: var(--danger-bg);  border:1px solid var(--danger);  color: var(--danger); }
+    /* ── Responsive ─────────────────────────────────────────── */
+    @media(max-width:700px) {
+      .profile-layout { grid-template-columns: 1fr; }
+      .profile-sidebar { position: static; }
+      .profile-section { padding: 20px 16px; }
+    }
+  </style>
 </head>
 <body>
 <nav id="navbar"></nav>
 <div id="toast-container"></div>
 <div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
 
-<main class="container section" style="max-width:600px">
-  <div class="page-header">
+<main class="container section" style="max-width:860px">
+  <div class="page-header" style="margin-bottom:24px">
     <h1 class="page-title">👤 Hồ sơ cá nhân</h1>
   </div>
 
-  <div class="card" id="profile-card">
-    <div class="empty-state"><div class="spinner-ring"></div></div>
+  <div class="profile-layout" id="profile-layout">
+    <!-- Skeleton sidebar -->
+    <div class="profile-sidebar">
+      <div class="skeleton" style="width:88px;height:88px;border-radius:50%;margin:0 auto 16px"></div>
+      <div class="skeleton skeleton-line medium" style="margin:0 auto 8px"></div>
+      <div class="skeleton skeleton-line short thin" style="margin:0 auto"></div>
+    </div>
+    <!-- Skeleton content -->
+    <div class="profile-section">
+      <div class="skeleton skeleton-line medium" style="margin-bottom:12px"></div>
+      <div class="skeleton skeleton-line full thin" style="margin-bottom:8px"></div>
+      <div class="skeleton skeleton-line full thin" style="margin-bottom:8px"></div>
+    </div>
   </div>
 </main>
 
 <script src="js/api.js"></script>
+<script src="js/notifications.js"></script>
 <script>
-renderNavbar();
 if (!requireAuth('/login.html')) throw 0;
+renderNavbar('');
 
+let userData = null;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function initials(name) {
+  return (name || '?').charAt(0).toUpperCase();
+}
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Toggle password visibility ────────────────────────────────────────────────
+function togglePwVis(inputId, btnId) {
+  const inp = document.getElementById(inputId);
+  const btn = document.getElementById(btnId);
+  if (!inp || !btn) return;
+  if (inp.type === 'password') { inp.type = 'text';     btn.textContent = '🙈'; }
+  else                         { inp.type = 'password'; btn.textContent = '👁'; }
+}
+
+// ── Show/hide inline field error ──────────────────────────────────────────────
+function setFieldError(inputId, errId, msg) {
+  const inp = document.getElementById(inputId);
+  const err = document.getElementById(errId);
+  if (!inp || !err) return;
+  if (msg) {
+    inp.classList.add('invalid');
+    err.textContent = msg;
+    err.classList.add('show');
+  } else {
+    inp.classList.remove('invalid');
+    err.classList.remove('show');
+  }
+}
+function clearFieldErrors(...ids) {
+  ids.forEach(({ inputId, errId }) => setFieldError(inputId, errId, ''));
+}
+
+// ── Load profile data ─────────────────────────────────────────────────────────
 async function loadProfile() {
-  showSpinner();
-  const { ok, data } = await apiFetch('/auth/me');
-  hideSpinner();
-  if (!ok) { showToast(data.message, 'error'); return; }
-  const u = data.data;
+  const { ok, data } = await apiFetch('/profile');
+  if (!ok) { showToast(data.message || 'Lỗi tải hồ sơ', 'error'); return; }
+  userData = data.data;
+  renderLayout();
+  switchTab('info');
+}
 
-  document.getElementById('profile-card').innerHTML = `
-    <div style="display:flex;align-items:center;gap:20px;margin-bottom:28px">
-      <div style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--primary-dark),#a78bfa);display:flex;align-items:center;justify-content:center;font-size:2rem;font-weight:800;color:#fff;flex-shrink:0">
-        ${u.full_name.charAt(0).toUpperCase()}
+// ── Render full layout ────────────────────────────────────────────────────────
+function renderLayout() {
+  const u = userData;
+  const avatarHtml = u.avatar
+    ? `<img src="${u.avatar}" class="profile-avatar-img" id="sidebar-avatar-img" alt="Avatar"
+         onerror="this.style.display='none';document.getElementById('sidebar-avatar-init').style.display='flex'">`
+    + `<div class="profile-avatar-initials" id="sidebar-avatar-init" style="display:none">${initials(u.full_name)}</div>`
+    : `<div class="profile-avatar-initials" id="sidebar-avatar-init">${initials(u.full_name)}</div>`;
+
+  const roleMap = { student: '🎓 Học viên', instructor: '📖 Giảng viên', admin: '⚙️ Admin' };
+  const roleCls = { student: 'badge-info', instructor: 'badge-primary', admin: 'badge-warning' };
+
+  document.getElementById('profile-layout').innerHTML = `
+    <!-- Sidebar -->
+    <div class="profile-sidebar">
+      <div class="profile-avatar-wrap">${avatarHtml}</div>
+      <div class="profile-name">${escHtml(u.full_name)}</div>
+      <div class="profile-email">${escHtml(u.email)}</div>
+      <div style="display:flex;justify-content:center;gap:6px;flex-wrap:wrap">
+        <span class="badge ${roleCls[u.role] || 'badge-info'}">${roleMap[u.role] || u.role}</span>
+        ${u.is_active ? '<span class="badge badge-success">✅ Hoạt động</span>' : '<span class="badge badge-danger">🔒 Đã khóa</span>'}
       </div>
-      <div>
-        <h2 style="font-size:1.2rem;font-weight:700">${u.full_name}</h2>
-        <p style="color:var(--text-dim);font-size:.88rem">${u.email}</p>
-        <div style="margin-top:4px;display:flex;gap:6px">${statusBadge(u.role)} ${statusBadge(u.status)}</div>
+      <div style="font-size:.78rem;color:var(--text-muted);margin-top:12px">
+        📅 Tham gia: ${formatDate(u.created_at)}
+      </div>
+
+      <div class="profile-nav" style="margin-top:20px">
+        <button class="profile-nav-btn" id="nav-info"     onclick="switchTab('info')">✏️ Thông tin cá nhân</button>
+        <button class="profile-nav-btn" id="nav-avatar"   onclick="switchTab('avatar')">🖼️ Ảnh đại diện</button>
+        <button class="profile-nav-btn" id="nav-password" onclick="switchTab('password')">🔐 Đổi mật khẩu</button>
+        ${u.role === 'student' ? '<button class="profile-nav-btn" id="nav-certs" onclick="switchTab(\'certs\')">🏆 Chứng chỉ của tôi</button>' : ''}
       </div>
     </div>
 
-    <div style="background:var(--bg-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;margin-bottom:24px;font-size:.88rem;color:var(--text-dim)">
-      📅 Tham gia từ: ${formatDate(u.created_at)}
-    </div>
+    <!-- Main panel -->
+    <div id="profile-panel" class="profile-section"></div>`;
+}
 
-    <hr class="divider">
-    <h3 style="font-weight:700;margin-bottom:20px">Cập nhật thông tin</h3>
+// ── Switch tab ────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  ['info','avatar','password','certs'].forEach(t => {
+    document.getElementById(`nav-${t}`)?.classList.toggle('active', t === tab);
+  });
+  const panel = document.getElementById('profile-panel');
+  if (tab === 'info')     panel.innerHTML = renderInfoTab();
+  if (tab === 'avatar')   panel.innerHTML = renderAvatarTab();
+  if (tab === 'password') panel.innerHTML = renderPasswordTab();
+  if (tab === 'certs')    { panel.innerHTML = renderCertSkeletons(); loadCertificates(); }
+}
 
-    <form id="profile-form">
+// ══════════════════════════════════════════════════════════════════════════════
+//  Tab: Thông tin cá nhân
+// ══════════════════════════════════════════════════════════════════════════════
+function renderInfoTab() {
+  const u = userData;
+  return `
+    <div class="section-heading">✏️ Cập nhật thông tin cá nhân</div>
+    <div class="section-sub">Thay đổi họ tên hiển thị của bạn trên CourseDemy</div>
+    <form id="info-form">
       <div class="form-group">
-        <label>Họ và tên</label>
-        <input id="full_name" type="text" class="form-control" value="${u.full_name}" required>
+        <label for="field-name">Họ và tên</label>
+        <input id="field-name" type="text" class="form-control" value="${escHtml(u.full_name)}" required>
       </div>
       <div class="form-group">
         <label>Email</label>
-        <input type="text" class="form-control" value="${u.email}" disabled style="opacity:.6;cursor:not-allowed">
+        <input type="text" class="form-control" value="${escHtml(u.email)}" disabled
+          style="opacity:.55;cursor:not-allowed">
         <p class="form-hint">Email không thể thay đổi</p>
       </div>
-      <button type="submit" class="btn btn-primary">💾 Lưu thay đổi</button>
+      <div class="form-group" style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <div>
+          <div style="font-size:.82rem;font-weight:600;color:var(--text-dim);margin-bottom:4px">Vai trò</div>
+          ${statusBadge(u.role)}
+        </div>
+        <div>
+          <div style="font-size:.82rem;font-weight:600;color:var(--text-dim);margin-bottom:4px">Trạng thái</div>
+          ${u.is_active ? '<span class="badge badge-success">Hoạt động</span>' : '<span class="badge badge-danger">Đã khóa</span>'}
+        </div>
+        <div>
+          <div style="font-size:.82rem;font-weight:600;color:var(--text-dim);margin-bottom:4px">Ngày tham gia</div>
+          <span style="font-size:.85rem">${formatDate(u.created_at)}</span>
+        </div>
+      </div>
+      <button type="submit" class="btn btn-primary" id="btn-save-info">💾 Lưu thay đổi</button>
     </form>`;
-
-  document.getElementById('profile-form').addEventListener('submit', async e => {
-    e.preventDefault();
-    const btn = e.target.querySelector('button');
-    btn.disabled = true; btn.textContent = 'Đang lưu...';
-    showSpinner();
-
-    const { ok, data } = await apiFetch('/auth/profile', {
-      method: 'PUT',
-      body: JSON.stringify({ full_name: document.getElementById('full_name').value.trim() })
-    });
-
-    hideSpinner(); btn.disabled = false; btn.textContent = '💾 Lưu thay đổi';
-    if (!ok) { showToast(data.message, 'error'); return; }
-
-    // Cập nhật user trong localStorage
-    const stored = getUser();
-    setAuth(getToken(), { ...stored, full_name: data.data.full_name });
-    showToast('Cập nhật thành công!', 'success');
-    renderNavbar();
-  });
 }
 
+document.addEventListener('submit', async function(e) {
+  if (e.target.id !== 'info-form') return;
+  e.preventDefault();
+  const btn = document.getElementById('btn-save-info');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-sm"></span> Đang lưu...';
+
+  const { ok, data } = await apiFetch('/auth/profile', {
+    method: 'PUT',
+    body: JSON.stringify({ full_name: document.getElementById('field-name').value.trim() }),
+  });
+
+  btn.disabled = false; btn.textContent = '💾 Lưu thay đổi';
+  if (!ok) { showToast(data.message || 'Lỗi', 'error'); return; }
+
+  userData.full_name = data.data.full_name;
+  const stored = getUser();
+  setAuth(getToken(), { ...stored, full_name: data.data.full_name });
+  showToast('Cập nhật thành công! ✅', 'success');
+  renderLayout();
+  switchTab('info');
+  renderNavbar('');
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  Tab: Ảnh đại diện
+// ══════════════════════════════════════════════════════════════════════════════
+function renderAvatarTab() {
+  const u = userData;
+  const previewImg = u.avatar
+    ? `<img src="${u.avatar}" class="avatar-preview-img" id="avatar-preview-img" style="display:block" alt="Avatar"
+         onerror="this.style.display='none';document.getElementById('avatar-preview-init').style.display='flex'">`
+    : `<img class="avatar-preview-img" id="avatar-preview-img" alt="Avatar">`;
+
+  return `
+    <div class="section-heading">🖼️ Cập nhật ảnh đại diện</div>
+    <div class="section-sub">Dán link URL ảnh (http:// hoặc https://) — không cần upload file</div>
+    <div class="avatar-preview-wrap">
+      <div class="avatar-preview-initials" id="avatar-preview-init"
+        style="${u.avatar ? 'display:none' : 'display:flex'}">${initials(u.full_name)}</div>
+      ${previewImg}
+      <div>
+        <div style="font-size:.82rem;font-weight:600;margin-bottom:4px">Xem trước</div>
+        <div style="font-size:.75rem;color:var(--text-muted)">
+          ${u.avatar ? '✅ Đang dùng ảnh từ URL' : '(Chưa có ảnh đại diện)'}
+        </div>
+      </div>
+    </div>
+    <form id="avatar-form">
+      <div class="form-group">
+        <label for="field-avatar">Link ảnh đại diện</label>
+        <input id="field-avatar" type="url" class="form-control"
+          placeholder="https://example.com/my-avatar.jpg"
+          value="${u.avatar ? escHtml(u.avatar) : ''}"
+          oninput="previewAvatar(this.value)">
+        <p class="form-hint">Hỗ trợ link từ bất kỳ nguồn ảnh công khai nào</p>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button type="submit" class="btn btn-primary" id="btn-save-avatar">🖼️ Lưu ảnh đại diện</button>
+        ${u.avatar ? `<button type="button" class="btn btn-ghost" onclick="removeAvatar()">🗑 Xóa ảnh</button>` : ''}
+      </div>
+    </form>`;
+}
+
+function previewAvatar(url) {
+  const img  = document.getElementById('avatar-preview-img');
+  const init = document.getElementById('avatar-preview-init');
+  if (!img || !init) return;
+  if (url && url.startsWith('http')) {
+    img.src = url;
+    img.style.display = 'block';
+    img.onerror = () => { img.style.display = 'none'; init.style.display = 'flex'; };
+    init.style.display = 'none';
+  } else {
+    img.style.display = 'none';
+    init.style.display = 'flex';
+  }
+}
+
+async function removeAvatar() {
+  if (!confirm('Xóa ảnh đại diện hiện tại?')) return;
+  const { ok, data } = await apiFetch('/profile/avatar', {
+    method: 'PUT',
+    body: JSON.stringify({ avatar_url: '' }),
+  });
+  if (!ok) { showToast(data.message || 'Không thể xóa ảnh', 'error'); return; }
+  userData.avatar = null;
+  const stored = getUser();
+  setAuth(getToken(), { ...stored, avatar: null });
+  showToast('Đã xóa ảnh đại diện', 'success');
+  renderLayout();
+  switchTab('avatar');
+  renderNavbar('');
+}
+
+document.addEventListener('submit', async function(e) {
+  if (e.target.id !== 'avatar-form') return;
+  e.preventDefault();
+  const url = document.getElementById('field-avatar').value.trim();
+  const btn = document.getElementById('btn-save-avatar');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-sm"></span> Đang lưu...';
+
+  const { ok, data } = await apiFetch('/profile/avatar', {
+    method: 'PUT',
+    body: JSON.stringify({ avatar_url: url }),
+  });
+
+  btn.disabled = false; btn.textContent = '🖼️ Lưu ảnh đại diện';
+  if (!ok) { showToast(data.message || 'Lỗi', 'error'); return; }
+
+  userData.avatar = data.data.avatar;
+  const stored = getUser();
+  setAuth(getToken(), { ...stored, avatar: data.data.avatar });
+  showToast('Đã cập nhật ảnh đại diện ✅', 'success');
+  renderLayout();
+  switchTab('avatar');
+  // Cập nhật avatar trên navbar ngay lập tức
+  renderNavbar('');
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  Tab: Đổi mật khẩu
+// ══════════════════════════════════════════════════════════════════════════════
+function renderPasswordTab() {
+  return `
+    <div class="section-heading">🔐 Đổi mật khẩu</div>
+    <div class="section-sub">Mật khẩu mới phải có ít nhất 6 ký tự và khác mật khẩu hiện tại</div>
+    <div id="pw-banner" class="form-banner"></div>
+    <form id="password-form" autocomplete="off" novalidate>
+      <!-- Mật khẩu hiện tại -->
+      <div class="form-group">
+        <label for="cur-pw">Mật khẩu hiện tại</label>
+        <div class="pw-wrap">
+          <input id="cur-pw" type="password" class="form-control" placeholder="Mật khẩu hiện tại" autocomplete="current-password">
+          <button type="button" class="pw-eye" id="eye-cur" onclick="togglePwVis('cur-pw','eye-cur')" aria-label="Hiện/ẩn">👁</button>
+        </div>
+        <span class="field-error" id="err-cur"></span>
+      </div>
+      <!-- Mật khẩu mới -->
+      <div class="form-group">
+        <label for="new-pw">Mật khẩu mới</label>
+        <div class="pw-wrap">
+          <input id="new-pw" type="password" class="form-control" placeholder="Tối thiểu 6 ký tự" autocomplete="new-password">
+          <button type="button" class="pw-eye" id="eye-new" onclick="togglePwVis('new-pw','eye-new')" aria-label="Hiện/ẩn">👁</button>
+        </div>
+        <span class="field-error" id="err-new"></span>
+      </div>
+      <!-- Xác nhận mật khẩu mới -->
+      <div class="form-group">
+        <label for="confirm-pw">Xác nhận mật khẩu mới</label>
+        <div class="pw-wrap">
+          <input id="confirm-pw" type="password" class="form-control" placeholder="Nhập lại mật khẩu mới" autocomplete="new-password">
+          <button type="button" class="pw-eye" id="eye-confirm" onclick="togglePwVis('confirm-pw','eye-confirm')" aria-label="Hiện/ẩn">👁</button>
+        </div>
+        <span class="field-error" id="err-confirm"></span>
+      </div>
+      <button type="submit" class="btn btn-primary" id="btn-save-pw">🔐 Đổi mật khẩu</button>
+    </form>`;
+}
+
+document.addEventListener('submit', async function(e) {
+  if (e.target.id !== 'password-form') return;
+  e.preventDefault();
+
+  // ── Client-side validation ────────────────────────────────────────────────
+  const curPw  = document.getElementById('cur-pw')?.value || '';
+  const newPw  = document.getElementById('new-pw')?.value || '';
+  const confPw = document.getElementById('confirm-pw')?.value || '';
+  const banner = document.getElementById('pw-banner');
+
+  // Clear trước
+  ['cur','new','confirm'].forEach(k => setFieldError(`${k}-pw`, `err-${k}`, ''));
+  banner.className = 'form-banner'; banner.textContent = '';
+
+  let hasError = false;
+  if (!curPw) { setFieldError('cur-pw','err-cur','Vui lòng nhập mật khẩu hiện tại'); hasError = true; }
+  if (!newPw) { setFieldError('new-pw','err-new','Vui lòng nhập mật khẩu mới'); hasError = true; }
+  else if (newPw.length < 6) { setFieldError('new-pw','err-new','Mật khẩu mới phải có ít nhất 6 ký tự'); hasError = true; }
+  if (!confPw) { setFieldError('confirm-pw','err-confirm','Vui lòng nhập xác nhận mật khẩu'); hasError = true; }
+  else if (newPw && confPw !== newPw) { setFieldError('confirm-pw','err-confirm','Xác nhận mật khẩu không khớp'); hasError = true; }
+  if (hasError) return;
+
+  const btn = document.getElementById('btn-save-pw');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-sm"></span> Đang xử lý...';
+
+  const { ok, data } = await apiFetch('/profile/password', {
+    method: 'PUT',
+    body: JSON.stringify({ current_password: curPw, new_password: newPw, confirm_password: confPw }),
+  });
+
+  btn.disabled = false; btn.textContent = '🔐 Đổi mật khẩu';
+
+  if (!ok) {
+    banner.textContent = data.message || 'Đổi mật khẩu thất bại';
+    banner.className = 'form-banner err show';
+    return;
+  }
+
+  banner.textContent = '✅ Đổi mật khẩu thành công!';
+  banner.className = 'form-banner ok show';
+  // Xóa trắng các ô
+  ['cur-pw','new-pw','confirm-pw'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.value = ''; el.type = 'password'; }
+  });
+  ['eye-cur','eye-new','eye-confirm'].forEach(id => {
+    const btn = document.getElementById(id);
+    if (btn) btn.textContent = '👁';
+  });
+  showToast('Đổi mật khẩu thành công! 🔐', 'success');
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+//  Tab: Chứng chỉ của tôi (student only)
+// ══════════════════════════════════════════════════════════════════════════════
+function renderCertSkeletons() {
+  const skels = Array(3).fill(0).map(() => `
+    <div class="cert-card">
+      <div class="cert-thumb"><div class="skeleton" style="width:100%;height:100%"></div></div>
+      <div class="cert-body">
+        <div class="skeleton skeleton-line short" style="margin-bottom:8px"></div>
+        <div class="skeleton skeleton-line thin" style="margin-bottom:12px;width:50%"></div>
+        <div class="skeleton skeleton-line thin" style="width:70%"></div>
+      </div>
+    </div>`).join('');
+  return `
+    <div class="section-heading">🏆 Chứng chỉ của tôi</div>
+    <div class="section-sub">Các chứng chỉ hoàn thành khóa học bạn đã đạt được</div>
+    <div class="cert-grid" id="cert-grid">${skels}</div>`;
+}
+
+async function loadCertificates() {
+  const { ok, data } = await apiFetch('/profile/certificates');
+  const grid = document.getElementById('cert-grid');
+  if (!grid) return;
+
+  if (!ok || !data.data?.length) {
+    grid.innerHTML = `
+      <div class="empty-state" style="grid-column:1/-1;padding:40px">
+        <div class="empty-icon">🎓</div>
+        <p class="empty-text">Bạn chưa có chứng chỉ nào.</p>
+        <p style="font-size:.84rem;color:var(--text-muted);margin-top:8px">Hoàn thành 100% khóa học để nhận chứng chỉ!</p>
+        <a href="/my-courses.html" class="btn btn-primary btn-sm" style="margin-top:16px">📚 Xem khóa học của tôi</a>
+      </div>`;
+    return;
+  }
+
+  grid.innerHTML = data.data.map(cert => {
+    const thumbHtml = cert.course.thumbnail
+      ? `<img src="${escHtml(cert.course.thumbnail)}" alt="${escHtml(cert.course.title)}" style="width:100%;height:100%;object-fit:cover">`
+      : `<span>🎓</span>`;
+    return `
+      <div class="cert-card">
+        <div class="cert-thumb">${thumbHtml}</div>
+        <div class="cert-body">
+          <div class="cert-title">${escHtml(cert.course.title)}</div>
+          <div class="cert-meta">📅 Cấp ngày: ${formatDate(cert.issued_at)}</div>
+          <div class="cert-code">${escHtml(cert.certificate_code)}</div>
+          <div class="cert-actions">
+            <button class="btn btn-sm btn-warning" id="dl-btn-${cert.course.id}"
+                    onclick="downloadCertPDF(${cert.course.id}, '${escHtml(cert.certificate_code)}', this)">
+              📥 Tải PDF
+            </button>
+            <button class="btn btn-sm btn-outline"
+                    onclick="shareCert('${escHtml(cert.certificate_code)}')">
+              🔗 Chia sẻ
+            </button>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+// ── Download certificate PDF ───────────────────────────────────────────────────
+async function downloadCertPDF(courseId, code, btn) {
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-sm"></span>'; }
+  try {
+    const token = getToken();
+    const res = await fetch(`http://localhost:3000/api/courses/${courseId}/certificate`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      showToast(err.message || 'Không thể tải chứng chỉ', 'error');
+      return;
+    }
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `certificate-${code}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+    showToast('Đã tải chứng chỉ PDF ✅', 'success');
+  } catch (_) {
+    showToast('Lỗi khi tải chứng chỉ', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📥 Tải PDF'; }
+  }
+}
+
+// ── Share certificate link ─────────────────────────────────────────────────────
+function shareCert(code) {
+  const url = `${location.origin}/certificate-verify.html?code=${encodeURIComponent(code)}`;
+  navigator.clipboard.writeText(url)
+    .then(() => showToast('Đã sao chép link xác thực chứng chỉ! 🔗', 'success'))
+    .catch(() => showToast('Không thể sao chép link', 'error'));
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
 loadProfile();
+
 </script>
 </body>
 </html>

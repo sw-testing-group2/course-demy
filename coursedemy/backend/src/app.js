@@ -31,7 +31,10 @@ const adminRoutes      = require('./routes/admin.routes');
 const wishlistRoutes   = require('./routes/wishlist.routes');
 const walletRoutes     = require('./routes/wallet.routes');
 const paymentsRoutes   = require('./routes/payments.routes');
-const qnaRoutes        = require('./routes/qna.routes');
+const qnaRoutes            = require('./routes/qna.routes');
+const profileRoutes        = require('./routes/profile.routes');
+const certificateRoutes    = require('./routes/certificate.routes');
+const notificationRoutes   = require('./routes/notification.routes');
 
 app.use('/api/auth',        authRoutes);
 app.use('/api/categories',  coursesRoutes);
@@ -45,6 +48,9 @@ app.use('/api/wishlist',    wishlistRoutes);
 app.use('/api/wallet',      walletRoutes);
 app.use('/api/payments',    paymentsRoutes);
 app.use('/api',             qnaRoutes);
+app.use('/api/profile',     profileRoutes);
+app.use('/api',             certificateRoutes);
+app.use('/api',             notificationRoutes);
 
 // ─── Khởi động server ─────────────────────────────────────────────────────
 app.listen(PORT, () => {

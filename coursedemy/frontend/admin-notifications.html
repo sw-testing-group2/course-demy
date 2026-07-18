@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Gửi thông báo – CourseDemy Admin</title>
+  <meta name="description" content="Admin gửi thông báo tới học viên, giảng viên hoặc người dùng cụ thể trên CourseDemy.">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* User search autocomplete */
+    .user-search-wrap { position: relative; }
+    .user-suggestions {
+      position: absolute;
+      top: 100%; left: 0; right: 0;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+      max-height: 200px;
+      overflow-y: auto;
+      z-index: 200;
+      display: none;
+    }
+    .user-suggestions.open { display: block; }
+    .user-suggest-item {
+      padding: 10px 14px;
+      cursor: pointer;
+      font-size: .88rem;
+      transition: background .15s;
+    }
+    .user-suggest-item:hover { background: var(--bg-hover); }
+    .user-suggest-role { font-size: .74rem; color: var(--text-muted); margin-left: 6px; }
+  </style>
+</head>
+<body>
+<nav id="navbar"></nav>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<main class="container section" style="max-width:900px">
+  <div class="page-header" style="margin-bottom:28px">
+    <h1 class="page-title">📢 Gửi thông báo</h1>
+    <p class="page-subtitle">Tạo và gửi thông báo đến người dùng trên hệ thống</p>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:28px;align-items:start">
+
+    <!-- ─── Form gửi thông báo ─── -->
+    <div class="card" style="padding:28px">
+      <div style="font-weight:700;font-size:1rem;margin-bottom:20px">✉️ Tạo thông báo mới</div>
+
+      <div class="form-group">
+        <label for="notif-title">Tiêu đề <span style="color:var(--danger)">*</span></label>
+        <input id="notif-title" type="text" class="form-control" placeholder="Tiêu đề thông báo...">
+      </div>
+
+      <div class="form-group">
+        <label for="notif-content">Nội dung <span style="color:var(--danger)">*</span></label>
+        <textarea id="notif-content" class="form-control" rows="4" placeholder="Nội dung thông báo..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="notif-target">Đối tượng nhận <span style="color:var(--danger)">*</span></label>
+        <select id="notif-target" class="form-control" onchange="onTargetChange()">
+          <option value="all">📣 Tất cả người dùng</option>
+          <option value="student">🎓 Toàn bộ học viên</option>
+          <option value="instructor">📖 Toàn bộ giảng viên</option>
+          <option value="admin">⚙️ Toàn bộ admin</option>
+          <option value="user">👤 Người dùng cụ thể</option>
+        </select>
+      </div>
+
+      <!-- User search (shown only when target=user) -->
+      <div class="form-group" id="user-search-group" style="display:none">
+        <label>Tìm người dùng <span style="color:var(--danger)">*</span></label>
+        <div class="user-search-wrap">
+          <input id="user-search-input" type="text" class="form-control"
+                 placeholder="Nhập tên hoặc email..."
+                 oninput="onUserSearch()" autocomplete="off">
+          <div class="user-suggestions" id="user-suggestions"></div>
+        </div>
+        <input type="hidden" id="selected-user-id">
+        <div id="selected-user-display" style="margin-top:8px;font-size:.84rem;color:var(--success)"></div>
+      </div>
+
+      <div class="form-group">
+        <label for="notif-link">Link đính kèm <span style="color:var(--text-muted)">(tuỳ chọn)</span></label>
+        <input id="notif-link" type="text" class="form-control" placeholder="/course.html?id=...">
+      </div>
+
+      <button class="btn btn-primary btn-full" id="btn-send" onclick="sendNotification()">
+        📤 Gửi thông báo
+      </button>
+    </div>
+
+    <!-- ─── Lịch sử thông báo ─── -->
+    <div>
+      <div style="font-weight:700;font-size:1rem;margin-bottom:16px">📋 Lịch sử đã gửi</div>
+
+      <!-- Skeleton -->
+      <div id="history-skeleton">
+        ${Array(4).fill(0).map(() => `
+          <div class="card" style="padding:14px 16px;margin-bottom:10px">
+            <div class="skeleton skeleton-line short" style="margin-bottom:8px"></div>
+            <div class="skeleton skeleton-line full thin"></div>
+          </div>`).join('')}
+      </div>
+
+      <div id="history-list" style="display:none;display:flex;flex-direction:column;gap:10px"></div>
+      <div class="pagination" id="history-pagination" style="margin-top:12px"></div>
+    </div>
+  </div>
+</main>
+
+<script src="js/api.js"></script>
+<script src="js/notifications.js"></script>
+<script>
+if (!requireAuth('/login.html')) throw 0;
+if (!requireRole('admin', '/index.html')) throw 0;
+renderNavbar('admin-notifications');
+
+let historyPage  = 1;
+let histTotalPgs = 1;
+let userSearchTimer = null;
+let selectedUserId  = null;
+
+const targetLabels = {
+  all: '📣 Tất cả',
+  student: '🎓 Học viên',
+  instructor: '📖 Giảng viên',
+  admin: '⚙️ Admin',
+  user: '👤 Cá nhân',
+};
+
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function timeAgo(dateStr) {
+  const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
+  if (diff < 60)      return 'vừa xong';
+  if (diff < 3600)    return `${Math.floor(diff/60)} phút trước`;
+  if (diff < 86400)   return `${Math.floor(diff/3600)} giờ trước`;
+  return formatDate(dateStr);
+}
+
+// ── Target change ─────────────────────────────────────────────────────────────
+function onTargetChange() {
+  const target = document.getElementById('notif-target').value;
+  const group  = document.getElementById('user-search-group');
+  group.style.display = target === 'user' ? 'block' : 'none';
+  if (target !== 'user') {
+    selectedUserId = null;
+    document.getElementById('selected-user-id').value = '';
+    document.getElementById('selected-user-display').textContent = '';
+    document.getElementById('user-search-input').value = '';
+  }
+}
+
+// ── User autocomplete ─────────────────────────────────────────────────────────
+async function onUserSearch() {
+  clearTimeout(userSearchTimer);
+  const q = document.getElementById('user-search-input').value.trim();
+  if (!q) { document.getElementById('user-suggestions').classList.remove('open'); return; }
+
+  userSearchTimer = setTimeout(async () => {
+    const { ok, data } = await apiFetch(`/admin/users?search=${encodeURIComponent(q)}&limit=8`);
+    const box = document.getElementById('user-suggestions');
+    if (!ok || !data.data?.users?.length) {
+      box.innerHTML = `<div class="user-suggest-item" style="color:var(--text-muted)">Không tìm thấy người dùng</div>`;
+      box.classList.add('open');
+      return;
+    }
+    box.innerHTML = data.data.users.map(u => `
+      <div class="user-suggest-item" onclick="selectUser(${u.id}, '${escHtml(u.full_name)}', '${escHtml(u.email)}')">
+        ${escHtml(u.full_name)}
+        <span class="user-suggest-role">${escHtml(u.email)}</span>
+        <span class="badge badge-outline" style="margin-left:4px;font-size:.7rem">${u.role}</span>
+      </div>`).join('');
+    box.classList.add('open');
+  }, 280);
+}
+
+function selectUser(id, name, email) {
+  selectedUserId = id;
+  document.getElementById('selected-user-id').value  = id;
+  document.getElementById('user-search-input').value = `${name} (${email})`;
+  document.getElementById('user-suggestions').classList.remove('open');
+  document.getElementById('selected-user-display').textContent = `✅ Đã chọn: ${name}`;
+}
+
+// Đóng suggestions khi click ra ngoài
+document.addEventListener('click', e => {
+  if (!document.getElementById('user-search-group')?.contains(e.target)) {
+    document.getElementById('user-suggestions')?.classList.remove('open');
+  }
+});
+
+// ── Send notification ─────────────────────────────────────────────────────────
+async function sendNotification() {
+  const title   = document.getElementById('notif-title').value.trim();
+  const content = document.getElementById('notif-content').value.trim();
+  const target  = document.getElementById('notif-target').value;
+  const link    = document.getElementById('notif-link').value.trim() || undefined;
+
+  if (!title || !content) {
+    showToast('Vui lòng nhập đầy đủ tiêu đề và nội dung thông báo', 'error');
+    return;
+  }
+  if (target === 'user' && !selectedUserId) {
+    showToast('Vui lòng chọn người dùng cụ thể', 'error');
+    return;
+  }
+
+  const btn = document.getElementById('btn-send');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-sm"></span> Đang gửi...';
+
+  const body = { title, content, target, link };
+  if (target === 'user') body.user_id = selectedUserId;
+
+  const { ok, data } = await apiFetch('/admin/notifications', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+
+  btn.disabled = false; btn.textContent = '📤 Gửi thông báo';
+
+  if (!ok) { showToast(data.message || 'Gửi thất bại', 'error'); return; }
+
+  showToast('Gửi thông báo thành công! 📢', 'success');
+
+  // Reset form
+  document.getElementById('notif-title').value   = '';
+  document.getElementById('notif-content').value = '';
+  document.getElementById('notif-link').value    = '';
+  document.getElementById('notif-target').value  = 'all';
+  document.getElementById('user-search-group').style.display = 'none';
+  selectedUserId = null;
+
+  // Prepend to history
+  prependHistory(data.data, target);
+}
+
+// ── History ───────────────────────────────────────────────────────────────────
+function renderHistoryCard(n, targetLabel) {
+  const lbl = targetLabel || (n.user_id ? '👤 Cá nhân' : (n.target_role ? targetLabels[n.target_role] || n.target_role : '📣 Tất cả'));
+  return `
+    <div class="card" style="padding:14px 16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;margin-bottom:6px">
+        <div style="font-weight:700;font-size:.9rem">${escHtml(n.title)}</div>
+        <span class="badge badge-primary">${lbl}</span>
+      </div>
+      <div style="font-size:.82rem;color:var(--text-dim);margin-bottom:6px">${escHtml((n.content||'').slice(0,100))}${(n.content||'').length>100?'…':''}</div>
+      <div style="font-size:.76rem;color:var(--text-muted)">${timeAgo(n.created_at)}</div>
+    </div>`;
+}
+
+function prependHistory(n, target) {
+  const list = document.getElementById('history-list');
+  list.style.display = 'flex';
+  list.insertAdjacentHTML('afterbegin', renderHistoryCard(n, targetLabels[target]));
+}
+
+async function loadHistory() {
+  document.getElementById('history-skeleton').style.display = 'block';
+  document.getElementById('history-list').style.display     = 'none';
+  document.getElementById('history-pagination').innerHTML   = '';
+
+  const { ok, data } = await apiFetch(`/admin/notifications?page=${historyPage}&limit=8`);
+
+  document.getElementById('history-skeleton').style.display = 'none';
+  const list = document.getElementById('history-list');
+  list.style.display = 'flex';
+
+  if (!ok || !data.data?.notifications?.length) {
+    list.innerHTML = `<div class="empty-state" style="padding:32px"><div class="empty-icon">📭</div><p class="empty-text">Chưa có thông báo nào được gửi.</p></div>`;
+    return;
+  }
+
+  histTotalPgs = data.data.totalPages ?? 1;
+  list.innerHTML = data.data.notifications.map(n => renderHistoryCard(n)).join('');
+  renderHistPag();
+}
+
+function renderHistPag() {
+  if (histTotalPgs <= 1) return;
+  document.getElementById('history-pagination').innerHTML = `
+    <button class="btn btn-outline btn-sm" onclick="goHistPage(${historyPage-1})" ${historyPage===1?'disabled':''}>← Trước</button>
+    <span class="page-info">${historyPage}/${histTotalPgs}</span>
+    <button class="btn btn-outline btn-sm" onclick="goHistPage(${historyPage+1})" ${historyPage===histTotalPgs?'disabled':''}>Sau →</button>`;
+}
+
+function goHistPage(p) { historyPage = p; loadHistory(); }
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadHistory();
+</script>
+</body>
+</html>

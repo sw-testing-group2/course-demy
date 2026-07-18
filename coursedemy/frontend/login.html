@@ -3,7 +3,44 @@
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Đăng nhập – CourseDemy</title>
+  <meta name="description" content="Đăng nhập vào CourseDemy để truy cập khóa học của bạn.">
   <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* ── Lockout banner ──────────────────────────────────────── */
+    .lockout-banner {
+      display: none;
+      background: linear-gradient(135deg, rgba(220,38,38,.15), rgba(239,68,68,.1));
+      border: 1px solid var(--danger);
+      border-radius: var(--radius-sm);
+      padding: 14px 16px;
+      margin-bottom: 20px;
+      color: var(--danger);
+    }
+    .lockout-banner.show { display: block; }
+    .lockout-title {
+      font-weight: 700; font-size: .88rem; margin-bottom: 6px;
+      display: flex; align-items: center; gap: 6px;
+    }
+    .lockout-msg { font-size: .84rem; line-height: 1.5; margin-bottom: 8px; color: #fca5a5; }
+    .lockout-countdown {
+      font-size: 1.5rem; font-weight: 800; letter-spacing: 2px;
+      text-align: center; padding: 8px 0;
+      background: rgba(239,68,68,.12); border-radius: var(--radius-sm);
+    }
+    /* ── Warning banner (sắp bị khóa) ───────────────────────── */
+    .warn-banner {
+      display: none;
+      background: rgba(251,191,36,.1);
+      border: 1px solid var(--warning);
+      border-radius: var(--radius-sm);
+      padding: 12px 14px;
+      margin-bottom: 16px;
+      color: var(--warning);
+      font-size: .87rem;
+      line-height: 1.5;
+    }
+    .warn-banner.show { display: block; }
+  </style>
 </head>
 <body class="auth-page">
 <div id="toast-container"></div>
@@ -14,6 +51,18 @@
   <h1 class="auth-title">Đăng nhập</h1>
   <p class="auth-subtitle">Chào mừng trở lại CourseDemy!</p>
 
+  <!-- Banner bị khóa tạm thời (423) -->
+  <div id="lockout-banner" class="lockout-banner">
+    <div class="lockout-title">🔒 Tài khoản tạm thời bị khóa</div>
+    <div id="lockout-msg" class="lockout-msg"></div>
+    <div id="lockout-countdown" class="lockout-countdown">05:00</div>
+  </div>
+
+  <!-- Banner cảnh báo sắp bị khóa (401 với lần thử còn lại) -->
+  <div id="warn-banner" class="warn-banner">
+    ⚠️ <span id="warn-msg"></span>
+  </div>
+
   <form id="login-form">
     <div class="form-group">
       <label>Email</label>
@@ -21,9 +70,14 @@
     </div>
     <div class="form-group">
       <label>Mật khẩu</label>
-      <input id="password" type="password" class="form-control" placeholder="••••••••" required>
+      <div style="position:relative">
+        <input id="password" type="password" class="form-control" placeholder="••••••••" required style="padding-right:44px">
+        <button type="button" id="toggle-pw" tabindex="-1"
+          style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1.1rem;padding:0;line-height:1"
+          onclick="togglePwVis('password','toggle-pw')" aria-label="Hiện/ẩn mật khẩu">👁</button>
+      </div>
     </div>
-    <button type="submit" class="btn btn-primary btn-full btn-lg">Đăng nhập</button>
+    <button type="submit" id="login-btn" class="btn btn-primary btn-full btn-lg">Đăng nhập</button>
   </form>
 
   <p class="auth-footer">Chưa có tài khoản? <a href="/register.html">Đăng ký ngay</a></p>
@@ -35,13 +89,73 @@
 // Nếu đã đăng nhập, redirect
 if (isLoggedIn()) window.location.href = '/index.html';
 
+// ── Password visibility toggle ────────────────────────────────────────────────
+function togglePwVis(inputId, btnId) {
+  const inp = document.getElementById(inputId);
+  const btn = document.getElementById(btnId);
+  if (inp.type === 'password') { inp.type = 'text'; btn.textContent = '🙈'; }
+  else                         { inp.type = 'password'; btn.textContent = '👁'; }
+}
+
+// ── Countdown timer state ─────────────────────────────────────────────────────
+let _countdownInterval = null;
+
+function startCountdown(remainingSeconds) {
+  const banner    = document.getElementById('lockout-banner');
+  const countdown = document.getElementById('lockout-countdown');
+  const loginBtn  = document.getElementById('login-btn');
+  const warnBanner = document.getElementById('warn-banner');
+
+  // Ẩn warn banner khi đã vào trạng thái lockout
+  warnBanner.classList.remove('show');
+
+  banner.classList.add('show');
+  loginBtn.disabled = true;
+
+  let secs = remainingSeconds;
+
+  function fmt(s) {
+    const m = String(Math.floor(s / 60)).padStart(2, '0');
+    const ss = String(s % 60).padStart(2, '0');
+    return `${m}:${ss}`;
+  }
+
+  countdown.textContent = fmt(secs);
+
+  if (_countdownInterval) clearInterval(_countdownInterval);
+  _countdownInterval = setInterval(() => {
+    secs--;
+    if (secs <= 0) {
+      clearInterval(_countdownInterval);
+      _countdownInterval = null;
+      banner.classList.remove('show');
+      loginBtn.disabled = false;
+      loginBtn.textContent = 'Đăng nhập';
+      countdown.textContent = '00:00';
+    } else {
+      countdown.textContent = fmt(secs);
+    }
+  }, 1000);
+}
+
+// ── Login form submit ─────────────────────────────────────────────────────────
 document.getElementById('login-form').addEventListener('submit', async e => {
   e.preventDefault();
-  const btn = e.target.querySelector('button[type=submit]');
+
+  // Nếu đang trong thời gian bị khóa, không cho submit
+  if (_countdownInterval) return;
+
+  const btn = document.getElementById('login-btn');
+  const warnBanner  = document.getElementById('warn-banner');
+  const warnMsg     = document.getElementById('warn-msg');
+  const lockoutMsg  = document.getElementById('lockout-msg');
+
   btn.disabled = true; btn.textContent = 'Đang đăng nhập...';
   showSpinner();
+  // Reset warn banner
+  warnBanner.classList.remove('show');
 
-  const { ok, data } = await apiFetch('/auth/login', {
+  const { ok, status, data } = await apiFetch('/auth/login', {
     method: 'POST',
     body: JSON.stringify({
       email:    document.getElementById('email').value.trim(),
@@ -49,10 +163,38 @@ document.getElementById('login-form').addEventListener('submit', async e => {
     })
   });
 
-  hideSpinner(); btn.disabled = false; btn.textContent = 'Đăng nhập';
+  hideSpinner();
 
-  if (!ok) { showToast(data.message || 'Đăng nhập thất bại', 'error'); return; }
+  // ── Tài khoản bị khóa tạm thời (423) ──────────────────────────────────────
+  if (status === 423) {
+    const remaining = data.data?.remaining_seconds || 300;
+    lockoutMsg.textContent = data.message || 'Tài khoản tạm thời bị khóa. Vui lòng thử lại sau.';
+    startCountdown(remaining);
+    return; // btn.disabled được quản lý bởi countdown
+  }
 
+  btn.disabled = false; btn.textContent = 'Đăng nhập';
+
+  // ── Sắp bị khóa (401 có "Còn lại") ────────────────────────────────────────
+  if (!ok && status === 401) {
+    const msg = data.message || 'Email hoặc mật khẩu không đúng';
+    // Kiểm tra nếu message chứa "Còn lại" → hiện warn banner màu vàng
+    if (msg.includes('Còn lại')) {
+      warnMsg.textContent = msg;
+      warnBanner.classList.add('show');
+    } else {
+      showToast(msg, 'error');
+    }
+    return;
+  }
+
+  // ── Lỗi khác ─────────────────────────────────────────────────────────────
+  if (!ok) {
+    showToast(data.message || 'Đăng nhập thất bại', 'error');
+    return;
+  }
+
+  // ── Thành công ────────────────────────────────────────────────────────────
   setAuth(data.data.token, data.data.user);
   showToast('Đăng nhập thành công!', 'success');
 

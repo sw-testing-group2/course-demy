@@ -23,6 +23,18 @@
         <p id="lesson-desc" style="font-size:0.88rem;color:var(--text-dim)"></p>
       </div>
 
+      <!-- Certificate completion banner (shown when progress = 100%) -->
+      <div id="cert-banner" style="display:none" class="cert-banner">
+        <div class="cert-banner-icon">🏆</div>
+        <div class="cert-banner-text">
+          <div class="cert-banner-title">Chúc mừng! Bạn đã hoàn thành khóa học!</div>
+          <div class="cert-banner-sub">Tải chứng chỉ hoàn thành để lưu trữ và chia sẻ thành tích của bạn.</div>
+        </div>
+        <button class="btn btn-warning" id="btn-dl-cert" onclick="downloadCourseCert()">
+          📥 Tải chứng chỉ hoàn thành
+        </button>
+      </div>
+
       <!-- Tab bar -->
       <div class="tab-bar" role="tablist">
         <button class="tab-btn active" id="tab-btn-content" role="tab" onclick="switchTab('content')">📖 Nội dung</button>
@@ -34,6 +46,13 @@
       <div class="tab-panel active" id="panel-content">
         <div id="lesson-content-body" style="color:var(--text-dim);line-height:1.8;font-size:.93rem">
           Chọn một bài học từ danh sách bên để bắt đầu học.
+        </div>
+        <!-- Mark complete button (student only, shown after lesson loads) -->
+        <div id="lesson-complete-wrap" style="display:none;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+          <button class="btn btn-success btn-sm" id="btn-mark-complete" onclick="markThisLessonComplete()">
+            ✅ Đánh dấu hoàn thành bài học
+          </button>
+          <span id="lesson-done-badge" style="display:none;margin-left:10px;font-size:.84rem;color:var(--success)">✔ Đã hoàn thành</span>
         </div>
       </div>
 
@@ -151,6 +170,7 @@
 </div>
 
 <script src="js/api.js"></script>
+<script src="js/notifications.js"></script>
 <script>
 // ── Auth ──────────────────────────────────────────────────────────────────────
 if (!requireAuth('/login.html')) throw 0;
@@ -279,6 +299,20 @@ async function selectLesson(lessonId, el) {
 
     document.getElementById('lesson-content-body').innerHTML =
       lesson.content ? `<div style="white-space:pre-wrap">${lesson.content}</div>` : '<p style="color:var(--text-muted)">Không có nội dung văn bản cho bài học này.</p>';
+
+    // Show mark-complete button for students
+    if (currentUser?.role === 'student') {
+      const wrap = document.getElementById('lesson-complete-wrap');
+      const badge = document.getElementById('lesson-done-badge');
+      const btn   = document.getElementById('btn-mark-complete');
+      if (wrap) {
+        wrap.style.display = 'block';
+        badge.style.display = 'none';
+        btn.style.display   = 'inline-flex';
+        btn.disabled = false;
+        btn.textContent = '✅ Đánh dấu hoàn thành bài học';
+      }
+    }
   }
 
   // If Q&A tab active, reload
@@ -571,8 +605,85 @@ function escHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
+// ── Mark this lesson complete ──────────────────────────────────────────
+async function markThisLessonComplete() {
+  if (!currentLessonId || currentUser?.role !== 'student') return;
+  const btn   = document.getElementById('btn-mark-complete');
+  const badge = document.getElementById('lesson-done-badge');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-sm"></span>';
+
+  const { ok, data } = await apiFetch(
+    `/courses/${courseId}/lessons/${currentLessonId}/complete`,
+    { method: 'PUT' }
+  );
+
+  if (!ok) {
+    showToast(data.message || 'Không thể đánh dấu hoàn thành', 'error');
+    btn.disabled = false; btn.textContent = '✅ Đánh dấu hoàn thành bài học';
+    return;
+  }
+
+  // Update UI: hide button, show badge
+  btn.style.display   = 'none';
+  badge.style.display = 'inline';
+
+  // Update curriculum sidebar checkmark
+  const li = document.getElementById(`li-${currentLessonId}`);
+  if (li && !li.querySelector('.done-check')) {
+    li.insertAdjacentHTML('beforeend', '<span class="done-check" style="margin-left:auto;color:var(--success);font-size:.8rem">✔</span>');
+  }
+
+  const pct = data.data?.progress_percent ?? 0;
+  showToast(`Đã hoàn thành bài học! Tiến độ: ${pct}%`, 'success');
+
+  // Show cert banner if 100%
+  const banner = document.getElementById('cert-banner');
+  if (banner) banner.style.display = pct >= 100 ? 'flex' : 'none';
+}
+
+// ── Check & show certificate banner ──────────────────────────────────────────
+async function checkCertProgress() {
+  if (currentUser?.role !== 'student') return;
+  const { ok, data } = await apiFetch(`/courses/${courseId}/progress`);
+  if (!ok || !data.data) return;
+  const pct = Math.round(data.data.progress_percent ?? 0);
+  const banner = document.getElementById('cert-banner');
+  if (banner) banner.style.display = pct >= 100 ? 'flex' : 'none';
+}
+
+// ── Download course certificate PDF ──────────────────────────────────────────
+async function downloadCourseCert() {
+  const btn = document.getElementById('btn-dl-cert');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-sm"></span> Đang tạo PDF...'; }
+  try {
+    const token = getToken();
+    const res = await fetch(`http://localhost:3000/api/courses/${courseId}/certificate`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      showToast(err.message || 'Không thể tải chứng chỉ', 'error');
+      return;
+    }
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `certificate-course-${courseId}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
+    showToast('Đã tải chứng chỉ PDF thành công! 🎓', 'success');
+  } catch (_) {
+    showToast('Lỗi khi tải chứng chỉ', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📥 Tải chứng chỉ hoàn thành'; }
+  }
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 loadCurriculum();
+if (currentUser?.role === 'student') checkCertProgress();
 </script>
 </body>
 </html>

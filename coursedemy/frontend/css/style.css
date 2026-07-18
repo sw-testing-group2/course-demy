@@ -708,6 +708,26 @@ tbody tr:hover {
   }
 }
 
+/* Inline spinner used inside buttons */
+.spinner-sm {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: middle;
+}
+
+/* Toast warning variant */
+.toast-warning {
+  background: #451a03;
+  border: 1px solid var(--warning);
+  color: var(--warning);
+}
+
+
 /* ══════════════════════════════════════════════════════
    AUTH PAGES
 ══════════════════════════════════════════════════════ */
@@ -2661,3 +2681,392 @@ tbody tr:hover {
     font-size: 0.82rem;
   }
 }
+
+/* ══════════════════════════════════════════════════════
+   NOTIFICATION BELL (navbar, shared via notifications.js)
+══════════════════════════════════════════════════════ */
+.notif-bell-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.notif-bell-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  position: relative;
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  transition: background var(--transition);
+}
+
+.notif-bell-btn:hover {
+  background: var(--bg-hover);
+}
+
+.notif-badge {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  min-width: 16px;
+  height: 16px;
+  background: var(--danger);
+  color: #fff;
+  border-radius: 100px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  pointer-events: none;
+}
+
+/* ── Dropdown ─────────────────────────────────────── */
+.notif-dropdown {
+  display: none;
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 340px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  z-index: 500;
+  overflow: hidden;
+}
+
+.notif-dropdown.open {
+  display: block;
+}
+
+.notif-drop-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.notif-drop-heading {
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.notif-drop-all {
+  font-size: 0.8rem;
+  color: var(--primary);
+}
+
+.notif-drop-list {
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.notif-drop-item {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.notif-drop-item:last-child {
+  border-bottom: none;
+}
+
+.notif-drop-item:hover {
+  background: var(--bg-hover);
+}
+
+.notif-drop-item.unread {
+  background: rgba(99, 102, 241, 0.06);
+}
+
+.notif-drop-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.notif-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary);
+  margin-top: 4px;
+}
+
+.notif-dot.read {
+  background: transparent;
+}
+
+.notif-drop-title {
+  font-size: 0.87rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.notif-drop-excerpt {
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin-bottom: 4px;
+  padding-left: 16px;
+}
+
+.notif-drop-time {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  padding-left: 16px;
+}
+
+.notif-drop-empty {
+  padding: 28px 16px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+@media (max-width: 480px) {
+  .notif-dropdown {
+    width: 100vw;
+    right: -8px;
+    border-radius: 0 0 var(--radius) var(--radius);
+  }
+}
+
+/* ══════════════════════════════════════════════════════
+   CERTIFICATE CARDS (profile tab + certificate-verify)
+══════════════════════════════════════════════════════ */
+.cert-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 18px;
+}
+
+.cert-card {
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: all var(--transition);
+}
+
+.cert-card:hover {
+  border-color: var(--primary);
+  box-shadow: 0 4px 20px var(--primary-glow);
+  transform: translateY(-2px);
+}
+
+.cert-thumb {
+  width: 100%;
+  aspect-ratio: 16/9;
+  object-fit: cover;
+  background: linear-gradient(135deg, #1a2235, #2d3f5e);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 2.5rem;
+}
+
+.cert-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.cert-body {
+  padding: 14px 16px;
+}
+
+.cert-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.cert-meta {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  margin-bottom: 12px;
+}
+
+.cert-code {
+  font-family: monospace;
+  font-size: 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 8px;
+  color: var(--primary);
+  margin-bottom: 12px;
+  word-break: break-all;
+}
+
+.cert-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ══════════════════════════════════════════════════════
+   NOTIFICATION LIST PAGE (notifications.html)
+══════════════════════════════════════════════════════ */
+.notif-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background var(--transition);
+}
+
+.notif-item:last-child {
+  border-bottom: none;
+}
+
+.notif-item:hover {
+  background: var(--bg-hover);
+}
+
+.notif-item.unread {
+  background: rgba(99, 102, 241, 0.05);
+}
+
+.notif-item-dot {
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--primary);
+  margin-top: 6px;
+}
+
+.notif-item-dot.read {
+  background: transparent;
+  border: 1.5px solid var(--border);
+}
+
+.notif-item-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.notif-item-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 4px;
+}
+
+.notif-item-content {
+  font-size: 0.83rem;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin-bottom: 6px;
+}
+
+.notif-item-time {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
+
+/* ══════════════════════════════════════════════════════
+   CERTIFICATE BANNER (learn.html completion)
+══════════════════════════════════════════════════════ */
+.cert-banner {
+  background: linear-gradient(135deg, rgba(251,191,36,.15), rgba(245,158,11,.1));
+  border: 1px solid var(--warning);
+  border-radius: var(--radius);
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.cert-banner-icon {
+  font-size: 2rem;
+  flex-shrink: 0;
+}
+
+.cert-banner-text {
+  flex: 1;
+  min-width: 160px;
+}
+
+.cert-banner-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--warning);
+  margin-bottom: 2px;
+}
+
+.cert-banner-sub {
+  font-size: 0.82rem;
+  color: #d97706;
+}
+
+/* verify page result boxes */
+.verify-box {
+  border-radius: var(--radius);
+  padding: 28px 32px;
+  text-align: center;
+  margin-top: 24px;
+}
+
+.verify-box.ok {
+  background: var(--success-bg);
+  border: 1px solid var(--success);
+}
+
+.verify-box.err {
+  background: var(--danger-bg);
+  border: 1px solid var(--danger);
+}
+
+.verify-icon {
+  font-size: 3rem;
+  margin-bottom: 12px;
+}
+
+.verify-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.verify-value {
+  font-size: 1rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.verify-code {
+  font-family: monospace;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 14px;
+  font-size: 0.85rem;
+  color: var(--primary);
+  display: inline-block;
+  margin-top: 8px;
+}

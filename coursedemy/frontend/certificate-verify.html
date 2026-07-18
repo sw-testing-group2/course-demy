@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Xác thực chứng chỉ – CourseDemy</title>
+  <meta name="description" content="Xác thực tính hợp lệ của chứng chỉ hoàn thành khóa học trên CourseDemy.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav id="navbar"></nav>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<main class="container section" style="max-width:600px">
+  <div class="page-header" style="text-align:center;margin-bottom:32px">
+    <div style="font-size:3rem;margin-bottom:12px">🎓</div>
+    <h1 class="page-title">Xác thực chứng chỉ</h1>
+    <p class="page-subtitle">Nhập mã chứng chỉ để kiểm tra tính hợp lệ</p>
+  </div>
+
+  <!-- Search form -->
+  <div class="card" style="padding:28px 32px">
+    <div class="form-group" style="margin-bottom:16px">
+      <label for="code-input">Mã chứng chỉ</label>
+      <input id="code-input" type="text" class="form-control"
+             placeholder="VD: CD-3-7-A1B2C3"
+             style="font-family:monospace;letter-spacing:1px"
+             oninput="clearResult()">
+    </div>
+    <button class="btn btn-primary btn-full" id="btn-verify" onclick="doVerify()">
+      🔍 Xác thực
+    </button>
+  </div>
+
+  <!-- Result box -->
+  <div id="verify-result"></div>
+</main>
+
+<script src="js/api.js"></script>
+<script src="js/notifications.js"></script>
+<script>
+renderNavbar('');
+
+// ── Auto-fill from query string ───────────────────────────────────────────────
+const urlCode = new URLSearchParams(location.search).get('code');
+if (urlCode) {
+  document.getElementById('code-input').value = urlCode;
+  // Auto-verify on load
+  window.addEventListener('DOMContentLoaded', () => doVerify(), { once: true });
+}
+
+function clearResult() {
+  document.getElementById('verify-result').innerHTML = '';
+}
+
+// ── Verify ────────────────────────────────────────────────────────────────────
+async function doVerify() {
+  const code = document.getElementById('code-input').value.trim();
+  if (!code) { showToast('Vui lòng nhập mã chứng chỉ', 'error'); return; }
+
+  const btn = document.getElementById('btn-verify');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-sm"></span> Đang xác thực...';
+
+  const { ok, status, data } = await apiFetch(`/certificates/verify/${encodeURIComponent(code)}`);
+
+  btn.disabled = false; btn.textContent = '🔍 Xác thực';
+
+  if (!ok) {
+    document.getElementById('verify-result').innerHTML = `
+      <div class="verify-box err">
+        <div class="verify-icon">❌</div>
+        <div style="font-size:1rem;font-weight:700;color:var(--danger);margin-bottom:8px">
+          Chứng chỉ không hợp lệ
+        </div>
+        <div style="font-size:.88rem;color:#fca5a5">${data.message || 'Mã chứng chỉ không tồn tại hoặc không hợp lệ.'}</div>
+      </div>`;
+    return;
+  }
+
+  const d = data.data;
+  const issuedFormatted = formatDate(d.issued_at);
+
+  document.getElementById('verify-result').innerHTML = `
+    <div class="verify-box ok">
+      <div class="verify-icon">✅</div>
+      <div style="font-size:1.15rem;font-weight:800;color:var(--success);margin-bottom:20px">
+        Chứng chỉ hợp lệ!
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px 24px;text-align:left;max-width:400px;margin:0 auto 20px">
+        <div>
+          <div class="verify-label">Học viên</div>
+          <div class="verify-value">${escHtml(d.user.full_name)}</div>
+        </div>
+        <div>
+          <div class="verify-label">Ngày cấp</div>
+          <div class="verify-value">${escHtml(issuedFormatted)}</div>
+        </div>
+        <div style="grid-column:1/-1">
+          <div class="verify-label">Khóa học</div>
+          <div class="verify-value">${escHtml(d.course.title)}</div>
+        </div>
+      </div>
+
+      <div class="verify-label" style="margin-bottom:4px">Mã chứng chỉ</div>
+      <div class="verify-code">${escHtml(d.certificate_code)}</div>
+
+      <div style="margin-top:16px">
+        <button class="btn btn-sm btn-outline" onclick="copyCode('${escHtml(d.certificate_code)}')">
+          📋 Sao chép mã
+        </button>
+      </div>
+    </div>`;
+}
+
+function copyCode(code) {
+  navigator.clipboard.writeText(code).then(() => showToast('Đã sao chép mã chứng chỉ!', 'success'));
+}
+
+function escHtml(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

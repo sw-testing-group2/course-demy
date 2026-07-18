@@ -105,6 +105,16 @@ if (!userColumns.find((col) => col.name === 'avatar')) {
   db.exec(`ALTER TABLE users ADD COLUMN avatar TEXT DEFAULT NULL`);
 }
 
+// ── Thêm cột failed_login_attempts vào bảng users nếu chưa có ────────────────
+if (!userColumns.find((col) => col.name === 'failed_login_attempts')) {
+  db.exec(`ALTER TABLE users ADD COLUMN failed_login_attempts INTEGER NOT NULL DEFAULT 0`);
+}
+
+// ── Thêm cột locked_until vào bảng users nếu chưa có ─────────────────────────
+if (!userColumns.find((col) => col.name === 'locked_until')) {
+  db.exec(`ALTER TABLE users ADD COLUMN locked_until TEXT DEFAULT NULL`);
+}
+
 // ── Thêm cột payment_method vào bảng orders nếu chưa có ──────────────────────
 const orderColumns = db.prepare("PRAGMA table_info('orders')").all();
 if (!orderColumns.find((col) => col.name === 'payment_method')) {
@@ -190,6 +200,57 @@ db.exec(`
     reason TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     processed_at TEXT
+  );
+`);
+
+// ── Tạo bảng lesson_progress (theo dõi tiến độ học bài) ──────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS lesson_progress (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL REFERENCES users(id),
+    lesson_id  INTEGER NOT NULL REFERENCES lessons(id) ON DELETE CASCADE,
+    course_id  INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+    completed  INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(user_id, lesson_id)
+  );
+`);
+
+// ── Tạo bảng certificates (chứng chỉ hoàn thành khóa học) ────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS certificates (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id          INTEGER NOT NULL REFERENCES users(id),
+    course_id        INTEGER NOT NULL REFERENCES courses(id),
+    certificate_code TEXT NOT NULL UNIQUE,
+    issued_at        TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(user_id, course_id)
+  );
+`);
+
+// ── Tạo bảng notifications ────────────────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS notifications (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id     INTEGER REFERENCES users(id),
+    target_role TEXT,
+    title       TEXT NOT NULL,
+    content     TEXT NOT NULL,
+    type        TEXT NOT NULL DEFAULT 'system',
+    link        TEXT,
+    created_by  INTEGER REFERENCES users(id),
+    created_at  TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
+// ── Tạo bảng notification_reads ───────────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS notification_reads (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    notification_id INTEGER NOT NULL REFERENCES notifications(id),
+    user_id         INTEGER NOT NULL REFERENCES users(id),
+    read_at         TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(notification_id, user_id)
   );
 `);
 

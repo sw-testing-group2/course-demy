@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Thông báo – CourseDemy</title>
+  <meta name="description" content="Xem toàn bộ thông báo của bạn trên CourseDemy.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<nav id="navbar"></nav>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<main class="container section" style="max-width:760px">
+  <div class="page-header" style="margin-bottom:24px">
+    <h1 class="page-title">🔔 Thông báo</h1>
+  </div>
+
+  <!-- Toolbar -->
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px">
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-sm btn-primary"   id="filter-all"    onclick="setFilter('all')">Tất cả</button>
+      <button class="btn btn-sm btn-outline"   id="filter-unread" onclick="setFilter('unread')">Chưa đọc
+        <span id="unread-badge" style="margin-left:4px;font-size:.72rem"></span>
+      </button>
+    </div>
+    <button class="btn btn-sm btn-ghost" id="btn-read-all" onclick="markAllRead()">✔ Đánh dấu tất cả đã đọc</button>
+  </div>
+
+  <!-- List container -->
+  <div class="card" style="padding:0;overflow:hidden">
+    <!-- Skeleton -->
+    <div id="notif-skeleton">
+      ${Array(5).fill(0).map(() => `
+        <div style="display:flex;gap:12px;align-items:flex-start;padding:16px 20px;border-bottom:1px solid var(--border)">
+          <div class="skeleton" style="width:10px;height:10px;border-radius:50%;margin-top:6px;flex-shrink:0"></div>
+          <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+            <div class="skeleton skeleton-line short"></div>
+            <div class="skeleton skeleton-line full thin"></div>
+            <div class="skeleton skeleton-line thin" style="width:20%"></div>
+          </div>
+        </div>`).join('')}
+    </div>
+    <div id="notif-list" style="display:none"></div>
+  </div>
+
+  <!-- Pagination -->
+  <div class="pagination" id="notif-pagination" style="margin-top:16px"></div>
+</main>
+
+<script src="js/api.js"></script>
+<script src="js/notifications.js"></script>
+<script>
+if (!requireAuth('/login.html')) throw 0;
+renderNavbar('');
+
+let currentFilter = 'all';
+let currentPage   = 1;
+let totalPages    = 1;
+let unreadCount   = 0;
+
+// ── Time helper ───────────────────────────────────────────────────────────────
+function timeAgo(dateStr) {
+  const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
+  if (diff < 60)      return 'vừa xong';
+  if (diff < 3600)    return `${Math.floor(diff/60)} phút trước`;
+  if (diff < 86400)   return `${Math.floor(diff/3600)} giờ trước`;
+  if (diff < 604800)  return `${Math.floor(diff/86400)} ngày trước`;
+  if (diff < 2592000) return `${Math.floor(diff/604800)} tuần trước`;
+  return `${Math.floor(diff/2592000)} tháng trước`;
+}
+function escHtml(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Filter buttons ────────────────────────────────────────────────────────────
+function setFilter(f) {
+  currentFilter = f;
+  currentPage   = 1;
+  document.getElementById('filter-all').className    = `btn btn-sm ${f==='all'    ? 'btn-primary' : 'btn-outline'}`;
+  document.getElementById('filter-unread').className = `btn btn-sm ${f==='unread' ? 'btn-primary' : 'btn-outline'}`;
+  loadNotifications();
+}
+
+// ── Load list ─────────────────────────────────────────────────────────────────
+async function loadNotifications() {
+  document.getElementById('notif-skeleton').style.display = 'block';
+  document.getElementById('notif-list').style.display     = 'none';
+  document.getElementById('notif-pagination').innerHTML   = '';
+
+  const unreadOnly = currentFilter === 'unread';
+  const ep = `/notifications?page=${currentPage}&limit=15${unreadOnly ? '&unread_only=true' : ''}`;
+  const { ok, data } = await apiFetch(ep);
+
+  document.getElementById('notif-skeleton').style.display = 'none';
+  document.getElementById('notif-list').style.display     = 'block';
+
+  if (!ok) {
+    document.getElementById('notif-list').innerHTML =
+      `<div class="empty-state" style="padding:40px"><div class="empty-icon">😕</div><p class="empty-text">Không thể tải thông báo.</p></div>`;
+    return;
+  }
+
+  const notifs  = data.data.notifications ?? [];
+  totalPages    = data.data.totalPages ?? 1;
+  unreadCount   = data.data.unread_count ?? 0;
+
+  // Update unread badge on filter button
+  const badge = document.getElementById('unread-badge');
+  badge.textContent = unreadCount > 0 ? `(${unreadCount > 9 ? '9+' : unreadCount})` : '';
+
+  if (!notifs.length) {
+    document.getElementById('notif-list').innerHTML =
+      `<div class="empty-state" style="padding:40px">
+        <div class="empty-icon">🔕</div>
+        <p class="empty-text">${unreadOnly ? 'Không có thông báo chưa đọc.' : 'Chưa có thông báo nào.'}</p>
+      </div>`;
+    return;
+  }
+
+  document.getElementById('notif-list').innerHTML = notifs.map(renderItem).join('');
+  renderPagination();
+}
+
+// ── Render 1 item ─────────────────────────────────────────────────────────────
+function renderItem(n) {
+  const isUnread = !n.is_read;
+  const typeIcon = n.type === 'admin' ? '📢' : '⚙️';
+  return `
+    <div class="notif-item${isUnread ? ' unread' : ''}" id="notif-${n.id}"
+         onclick="clickItem(${n.id}, ${JSON.stringify(n.link || '')})">
+      <div class="notif-item-dot${isUnread ? '' : ' read'}"></div>
+      <div class="notif-item-body">
+        <div class="notif-item-title">${typeIcon} ${escHtml(n.title)}</div>
+        <div class="notif-item-content">${escHtml(n.content)}</div>
+        <div class="notif-item-time">${timeAgo(n.created_at)}</div>
+      </div>
+    </div>`;
+}
+
+// ── Click item → mark read → navigate ─────────────────────────────────────────
+async function clickItem(id, link) {
+  const itemEl = document.getElementById(`notif-${id}`);
+  if (itemEl?.classList.contains('unread')) {
+    itemEl.classList.remove('unread');
+    itemEl.querySelector('.notif-item-dot')?.classList.add('read');
+    const { ok } = await apiFetch(`/notifications/${id}/read`, { method: 'PUT' });
+    if (ok && unreadCount > 0) {
+      unreadCount--;
+      const badge = document.getElementById('unread-badge');
+      badge.textContent = unreadCount > 0 ? `(${unreadCount > 9 ? '9+' : unreadCount})` : '';
+    }
+  }
+  if (link) window.location.href = link;
+}
+
+// ── Mark all read ─────────────────────────────────────────────────────────────
+async function markAllRead() {
+  const btn = document.getElementById('btn-read-all');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-sm"></span>';
+  const { ok, data } = await apiFetch('/notifications/read-all', { method: 'PUT' });
+  btn.disabled = false; btn.textContent = '✔ Đánh dấu tất cả đã đọc';
+  if (!ok) { showToast(data.message || 'Lỗi', 'error'); return; }
+  showToast('Đã đánh dấu tất cả là đã đọc ✅', 'success');
+  unreadCount = 0;
+  document.getElementById('unread-badge').textContent = '';
+  // Update UI
+  document.querySelectorAll('.notif-item.unread').forEach(el => {
+    el.classList.remove('unread');
+    el.querySelector('.notif-item-dot')?.classList.add('read');
+  });
+  // Reset bell badge via notifications.js if present
+  if (typeof window._notifToggle !== 'undefined') {
+    document.getElementById('notif-badge') && (document.getElementById('notif-badge').style.display = 'none');
+  }
+}
+
+// ── Pagination ────────────────────────────────────────────────────────────────
+function renderPagination() {
+  if (totalPages <= 1) return;
+  const pag = document.getElementById('notif-pagination');
+  pag.innerHTML = `
+    <button class="btn btn-outline btn-sm" onclick="goPage(${currentPage-1})" ${currentPage===1?'disabled':''}>← Trước</button>
+    <span class="page-info">Trang ${currentPage} / ${totalPages}</span>
+    <button class="btn btn-outline btn-sm" onclick="goPage(${currentPage+1})" ${currentPage===totalPages?'disabled':''}>Sau →</button>`;
+}
+
+function goPage(p) { currentPage = p; loadNotifications(); }
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+loadNotifications();
+</script>
+</body>
+</html>
