@@ -25,6 +25,13 @@ function register(req, res) {
     });
   }
 
+  if (password.length < 6) {
+    return res.status(400).json({
+      success: false,
+      message: 'Mật khẩu phải có ít nhất 6 ký tự',
+    });
+  }
+
   const existingUser = db
     .prepare('SELECT id FROM users WHERE email = ?')
     .get(email);
