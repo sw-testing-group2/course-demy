@@ -7,14 +7,34 @@ const ALLOWED_ROLES = ['student', 'instructor'];
 const MAX_ATTEMPTS = 5;
 const LOCK_MINUTES = 5;
 
+// ─── Regex helpers ────────────────────────────────────────────────────────────
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;          // TC007
+const FULLNAME_REGEX = /^[\p{L}\s'-]+$/u;                    // TC008 — chữ cái Unicode, khoảng trắng, gạch ngang, dấu nháy
+
 // ─── POST /api/auth/register ────────────────────────────────────────────────
 function register(req, res) {
-  const { full_name, email, password, role } = req.body;
+  const { full_name, email, password, confirm_password, role } = req.body;
 
-  if (!full_name || !email || !password || !role) {
+  if (!full_name || !email || !password || !confirm_password || !role) {
     return res.status(400).json({
       success: false,
-      message: 'Vui lòng điền đầy đủ thông tin: full_name, email, password, role',
+      message: 'Vui lòng điền đầy đủ thông tin: full_name, email, password, confirm_password, role',
+    });
+  }
+
+  // TC008 — Họ tên không được chứa ký tự đặc biệt
+  if (!FULLNAME_REGEX.test(full_name.trim())) {
+    return res.status(400).json({
+      success: false,
+      message: 'Họ và tên không hợp lệ. Vui lòng chỉ dùng chữ cái, khoảng trắng hoặc dấu gạch ngang',
+    });
+  }
+
+  // TC007 — Email phải đúng định dạng
+  if (!EMAIL_REGEX.test(email.trim())) {
+    return res.status(400).json({
+      success: false,
+      message: 'Email không đúng định dạng (ví dụ: user@example.com)',
     });
   }
 
@@ -29,6 +49,14 @@ function register(req, res) {
     return res.status(400).json({
       success: false,
       message: 'Mật khẩu phải có ít nhất 6 ký tự',
+    });
+  }
+
+  // TC006 — Xác nhận mật khẩu bắt buộc phải khớp
+  if (confirm_password !== password) {
+    return res.status(400).json({
+      success: false,
+      message: 'Mật khẩu nhập lại không khớp',
     });
   }
 

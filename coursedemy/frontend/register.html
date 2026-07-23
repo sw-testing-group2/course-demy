@@ -28,6 +28,10 @@
       <input id="password" type="password" class="form-control" placeholder="Tối thiểu 6 ký tự" required>
     </div>
     <div class="form-group">
+      <label>Xác nhận mật khẩu</label>
+      <input id="confirm_password" type="password" class="form-control" placeholder="Nhập lại mật khẩu" required>
+    </div>
+    <div class="form-group">
       <label>Bạn muốn</label>
       <div class="radio-group">
         <label class="radio-label">
@@ -48,21 +52,44 @@
 <script>
 if (isLoggedIn()) window.location.href = '/index.html';
 
+// ── Regex helpers ──────────────────────────────────────────────────────────
+const EMAIL_REGEX     = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;      // TC007
+const FULLNAME_REGEX  = /^[\p{L}\s'\-]+$/u;                  // TC008
+
 document.getElementById('register-form').addEventListener('submit', async e => {
   e.preventDefault();
+
+  const full_name        = document.getElementById('full_name').value.trim();
+  const email            = document.getElementById('email').value.trim();
+  const password         = document.getElementById('password').value;
+  const confirm_password = document.getElementById('confirm_password').value;
+  const role             = document.querySelector('input[name="role"]:checked').value;
+
+  // TC008 — Họ tên không chứa ký tự đặc biệt
+  if (!FULLNAME_REGEX.test(full_name)) {
+    showToast('Họ và tên không hợp lệ. Vui lòng chỉ dùng chữ cái, khoảng trắng hoặc dấu gạch ngang', 'error');
+    return;
+  }
+
+  // TC007 — Email phải đúng định dạng
+  if (!EMAIL_REGEX.test(email)) {
+    showToast('Email không đúng định dạng (ví dụ: user@example.com)', 'error');
+    return;
+  }
+
+  // TC006 — Mật khẩu nhập lại phải khớp
+  if (password !== confirm_password) {
+    showToast('Mật khẩu nhập lại không khớp', 'error');
+    return;
+  }
+
   const btn = e.target.querySelector('button[type=submit]');
   btn.disabled = true; btn.textContent = 'Đang đăng ký...';
   showSpinner();
 
-  const role = document.querySelector('input[name="role"]:checked').value;
   const { ok, data } = await apiFetch('/auth/register', {
     method: 'POST',
-    body: JSON.stringify({
-      full_name: document.getElementById('full_name').value.trim(),
-      email:     document.getElementById('email').value.trim(),
-      password:  document.getElementById('password').value,
-      role,
-    })
+    body: JSON.stringify({ full_name, email, password, confirm_password, role })
   });
 
   hideSpinner(); btn.disabled = false; btn.textContent = 'Đăng ký';
