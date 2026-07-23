@@ -35,12 +35,22 @@ const qnaRoutes            = require('./routes/qna.routes');
 const profileRoutes        = require('./routes/profile.routes');
 const certificateRoutes    = require('./routes/certificate.routes');
 const notificationRoutes   = require('./routes/notification.routes');
+const couponsRoutes        = require('./routes/coupons.routes');
+const contentRoutes        = require('./routes/content.routes');
+const {
+  coursesRouter:     progressCoursesRouter,
+  lessonsRouter:     progressLessonsRouter,
+  enrollmentsRouter: progressEnrollmentsRouter,
+} = require('./routes/progress.routes');
 
 app.use('/api/auth',        authRoutes);
 app.use('/api/categories',  coursesRoutes);
+app.use('/api/courses',     progressCoursesRouter);  // GET /:id/sections (progress)
 app.use('/api/courses',     coursesRoutes);
+app.use('/api/lessons',     progressLessonsRouter);  // POST /:id/complete, /:id/submit-quiz
 app.use('/api/cart',        cartRoutes);
 app.use('/api/orders',      orderRoutes);
+app.use('/api/enrollments', progressEnrollmentsRouter); // GET /:courseId/progress
 app.use('/api/enrollments', enrollmentRoutes);
 app.use('/api/instructor',  instructorRoutes);
 app.use('/api/admin',       adminRoutes);
@@ -51,6 +61,9 @@ app.use('/api',             qnaRoutes);
 app.use('/api/profile',     profileRoutes);
 app.use('/api',             certificateRoutes);
 app.use('/api',             notificationRoutes);
+app.use('/api/admin/coupons', couponsRoutes);
+app.use('/api/coupons',       couponsRoutes);
+app.use('/api/instructor',   contentRoutes);
 
 // ─── Khởi động server ─────────────────────────────────────────────────────
 app.listen(PORT, () => {

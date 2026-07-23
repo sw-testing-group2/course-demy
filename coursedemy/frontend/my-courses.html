@@ -3,7 +3,58 @@
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Khóa học của tôi – CourseDemy</title>
+  <meta name="description" content="Danh sách các khóa học đã đăng ký trên CourseDemy.">
   <link rel="stylesheet" href="css/style.css">
+  <style>
+    .my-course-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: all var(--transition);
+    }
+    .my-course-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--primary);
+      box-shadow: 0 8px 32px var(--primary-glow);
+    }
+    .my-course-thumb-wrap {
+      aspect-ratio: 16/9;
+      overflow: hidden;
+      position: relative;
+    }
+    .my-course-thumb { width: 100%; height: 100%; object-fit: cover; transition: transform 0.4s; }
+    .my-course-card:hover .my-course-thumb { transform: scale(1.05); }
+    .my-course-thumb-ph {
+      width: 100%; height: 100%;
+      background: linear-gradient(135deg, var(--bg-2), var(--border));
+      display: flex; align-items: center; justify-content: center; font-size: 3rem;
+    }
+    .my-course-body { padding: 18px; flex: 1; display: flex; flex-direction: column; gap: 8px; }
+    .my-course-title { font-size: 1rem; font-weight: 700; line-height: 1.4; color: var(--text); }
+    .my-course-instructor { font-size: .82rem; color: var(--text-dim); }
+
+    /* Progress */
+    .progress-wrap { margin-top: 8px; }
+    .progress-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .progress-label { font-size: .75rem; color: var(--text-dim); font-weight: 600; }
+    .progress-pct { font-size: .78rem; font-weight: 700; color: var(--primary); }
+    .progress-track {
+      height: 7px; background: var(--border); border-radius: 100px; overflow: hidden;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary-dark), var(--success));
+      border-radius: 100px;
+      transition: width 0.5s ease;
+    }
+    .progress-fill.done { background: var(--success); }
+
+    .my-course-footer { margin-top: auto; padding-top: 14px; display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+    .enrolled-date { font-size: .75rem; color: var(--text-muted); }
+  </style>
 </head>
 <body>
 <nav id="navbar"></nav>
@@ -45,16 +96,30 @@ if (getUser()?.role !== 'student') window.location.href = '/index.html';
   el.innerHTML = `<div class="courses-grid">
     ${items.map(item => {
       const c = item.course;
+      const pct = Math.round(item.progress_percent ?? 0);
+      const isDone = pct >= 100;
       const thumb = c.thumbnail
-        ? `<img src="${c.thumbnail}" alt="${c.title}" class="card-thumb">`
-        : `<div class="card-thumb-placeholder"><span>📚</span></div>`;
-      return `<div class="course-card">
-        <div class="card-thumb-wrap">${thumb}</div>
-        <div class="card-body">
-          <h3 class="card-title">${c.title}</h3>
-          <p class="card-instructor">👤 ${c.instructor?.full_name || '—'}</p>
-          <div class="enrolled-banner" style="font-size:.8rem;padding:8px 12px">
-            ✅ Đã đăng ký ${formatDate(item.enrolled_at)}
+        ? `<img src="${c.thumbnail}" alt="${c.title}" class="my-course-thumb">`
+        : `<div class="my-course-thumb-ph">📚</div>`;
+      return `<div class="my-course-card">
+        <div class="my-course-thumb-wrap">${thumb}</div>
+        <div class="my-course-body">
+          <div class="my-course-title">${c.title}</div>
+          <div class="my-course-instructor">👤 ${c.instructor?.full_name || '—'}</div>
+          <div class="progress-wrap">
+            <div class="progress-header">
+              <span class="progress-label">Tiến độ học tập</span>
+              <span class="progress-pct">${pct}%</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-fill${isDone ? ' done' : ''}" style="width:${pct}%"></div>
+            </div>
+          </div>
+          <div class="my-course-footer">
+            <span class="enrolled-date">✅ Đăng ký ${formatDate(item.enrolled_at)}</span>
+            <a href="/learn.html?courseId=${c.id}" class="btn btn-primary btn-sm">
+              ${isDone ? '🔁 Xem lại' : '▶ Vào học'}
+            </a>
           </div>
         </div>
       </div>`;

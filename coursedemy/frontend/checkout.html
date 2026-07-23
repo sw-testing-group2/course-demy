@@ -5,37 +5,108 @@
   <title>Thanh toán – CourseDemy</title>
   <meta name="description" content="Xác nhận và thanh toán giỏ hàng tại CourseDemy.">
   <link rel="stylesheet" href="css/style.css">
+  <style>
+    .cart-layout {
+      display: grid;
+      grid-template-columns: 1fr 400px;
+      gap: 24px;
+      align-items: start;
+    }
+    @media (max-width: 900px) { .cart-layout { grid-template-columns: 1fr; } }
+
+    /* Cart items */
+    .cart-item {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+    }
+    .cart-item:last-child { border-bottom: none; }
+    .cart-thumb { width: 80px; height: 52px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
+    .cart-thumb-ph {
+      width: 80px; height: 52px; border-radius: 6px; flex-shrink: 0;
+      background: var(--bg-2); display: flex; align-items: center; justify-content: center; font-size: 1.5rem;
+    }
+    .cart-info { flex: 1; min-width: 0; }
+    .cart-info h3 { font-size: .95rem; font-weight: 600; line-height: 1.4; margin-bottom: 2px; }
+    .cart-info p { font-size: .82rem; color: var(--text-dim); }
+    .cart-item-price { font-weight: 700; color: var(--primary); white-space: nowrap; font-size: .95rem; }
+
+    /* Summary card */
+    .summary-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      position: sticky;
+      top: 80px;
+    }
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 0;
+      font-size: .9rem;
+      color: var(--text-dim);
+    }
+    .summary-row.summary-total {
+      font-weight: 700;
+      color: var(--text);
+      border-top: 1px solid var(--border);
+      margin-top: 8px;
+      padding-top: 16px;
+    }
+    .summary-discount { color: var(--success) !important; }
+
+    /* Coupon section */
+    .coupon-section { margin: 16px 0; }
+    .coupon-input-row { display: flex; gap: 8px; }
+    .coupon-input-row .form-control { flex: 1; }
+    .coupon-result {
+      margin-top: 8px; padding: 10px 14px;
+      background: var(--success-bg); border: 1px solid var(--success);
+      border-radius: var(--radius-sm); font-size: .85rem; color: var(--success);
+      display: none;
+    }
+    .coupon-error {
+      margin-top: 8px; font-size: .82rem; color: var(--danger);
+      display: none;
+    }
+
+    /* Payment methods */
+    .payment-methods { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+    .payment-method-card {
+      display: flex; align-items: center; gap: 14px;
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all var(--transition);
+    }
+    .payment-method-card:hover { border-color: var(--primary); background: var(--primary-glow); }
+    .payment-method-card:has(input:checked) {
+      border-color: var(--primary);
+      background: var(--primary-glow);
+    }
+    .payment-method-card input { accent-color: var(--primary); }
+    .payment-method-icon { font-size: 1.6rem; flex-shrink: 0; }
+    .payment-method-name { font-weight: 600; font-size: .92rem; }
+    .payment-method-desc { font-size: .78rem; color: var(--text-dim); margin-top: 2px; }
+    .payment-method-card.disabled-method { opacity: .45; cursor: not-allowed; }
+
+    .divider { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+    .secure-badge {
+      background: var(--success-bg); border: 1px solid var(--success);
+      border-radius: var(--radius-sm); padding: 10px 14px;
+      font-size: .82rem; color: var(--success); margin: 16px 0;
+    }
+  </style>
 </head>
 <body>
 <nav id="navbar"></nav>
 <div id="toast-container"></div>
 <div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
-
-<!-- Quick deposit modal -->
-<div id="deposit-modal" class="reject-modal-overlay" style="display:none">
-  <div class="reject-modal-box">
-    <div class="modal-header">
-      <h3 class="modal-title">💳 Nạp tiền nhanh</h3>
-      <button class="modal-close" onclick="closeDepositModal()">✕</button>
-    </div>
-    <p style="color:var(--text-dim);font-size:0.9rem;margin-bottom:20px">Nạp thêm tiền vào ví để tiến hành thanh toán.</p>
-    <div class="form-group">
-      <label for="modal-deposit-amount">Số tiền muốn nạp (VNĐ)</label>
-      <input type="number" id="modal-deposit-amount" class="form-control" placeholder="Nhập số tiền..." min="10000" step="1000">
-    </div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px">
-      <button class="btn btn-outline btn-sm" onclick="setModalAmt(50000)">50K</button>
-      <button class="btn btn-outline btn-sm" onclick="setModalAmt(100000)">100K</button>
-      <button class="btn btn-outline btn-sm" onclick="setModalAmt(200000)">200K</button>
-      <button class="btn btn-outline btn-sm" onclick="setModalAmt(500000)">500K</button>
-    </div>
-    <div id="modal-deposit-err" class="form-error" style="display:none;margin-bottom:12px"></div>
-    <div style="display:flex;gap:10px">
-      <button class="btn btn-ghost btn-full" onclick="closeDepositModal()">Huỷ</button>
-      <button class="btn btn-primary btn-full" id="btn-modal-deposit" onclick="doModalDeposit()">💳 Nạp tiền</button>
-    </div>
-  </div>
-</div>
 
 <main class="container section">
   <div class="page-header">
@@ -51,23 +122,18 @@ renderNavbar();
 if (!requireAuth('/login.html')) throw 0;
 if (getUser()?.role !== 'student') window.location.href = '/index.html';
 
-let walletBalance = 0;
 let orderTotal = 0;
-let selectedPayment = 'standard'; // 'standard' | 'wallet'
+let appliedCoupon = null;  // { code, discount_amount, total_amount }
+let selectedPayment = 'demo';
 
 async function loadCheckout() {
   showSpinner();
-  const [cartRes, walletRes] = await Promise.all([
-    apiFetch('/cart'),
-    apiFetch('/wallet/balance'),
-  ]);
+  const [cartRes] = await Promise.all([apiFetch('/cart')]);
   hideSpinner();
-
-  walletBalance = walletRes.ok ? (walletRes.data.data?.balance ?? walletRes.data.balance ?? 0) : 0;
 
   const el = document.getElementById('checkout-content');
 
-  if (!cartRes.ok || !cartRes.data.data.length) {
+  if (!cartRes.ok || !cartRes.data.data?.length) {
     el.innerHTML = `<div class="empty-state">
       <div class="empty-icon">🛒</div>
       <p class="empty-text">Giỏ hàng trống!</p>
@@ -77,171 +143,228 @@ async function loadCheckout() {
   }
 
   const items = cartRes.data.data;
-  orderTotal = items.reduce((s, i) => s + i.course.price, 0);
-  const canPayWallet = walletBalance >= orderTotal;
+  orderTotal = items.reduce((s, i) => s + (i.course?.price ?? 0), 0);
 
   el.innerHTML = `
     <div class="cart-layout">
-      <!-- Danh sách khóa học -->
+      <!-- Left: Course list -->
       <div class="card" style="padding:0;overflow:hidden">
         <div style="padding:16px 20px;border-bottom:1px solid var(--border);font-weight:700">📋 Đơn hàng của bạn</div>
         ${items.map(item => {
-          const thumb = item.course.thumbnail
-            ? `<img src="${item.course.thumbnail}" class="cart-thumb" alt="">`
+          const c = item.course;
+          const thumb = c.thumbnail
+            ? `<img src="${c.thumbnail}" class="cart-thumb" alt="">`
             : `<div class="cart-thumb-ph">📚</div>`;
           return `<div class="cart-item">
             ${thumb}
             <div class="cart-info">
-              <h3>${item.course.title}</h3>
-              <p>👤 ${item.course.instructor?.full_name || '—'}</p>
+              <h3>${c.title}</h3>
+              <p>👤 ${c.instructor?.full_name || '—'}</p>
             </div>
-            <span class="cart-item-price">${formatPriceText(item.course.price)}</span>
+            <span class="cart-item-price">${formatPriceText(c.price)}</span>
           </div>`;
         }).join('')}
       </div>
 
-      <!-- Summary + Payment -->
+      <!-- Right: Summary -->
       <div>
         <div class="summary-card">
           <h3 style="font-weight:700;margin-bottom:16px">Tóm tắt đơn hàng</h3>
-          <div class="summary-row"><span>Số khóa học</span><span>${items.length}</span></div>
+
+          <div class="summary-row">
+            <span>Số khóa học</span>
+            <span>${items.length}</span>
+          </div>
+          <div class="summary-row" id="row-subtotal">
+            <span>Tạm tính</span>
+            <span id="val-subtotal">${formatPriceText(orderTotal)}</span>
+          </div>
+          <div class="summary-row" id="row-discount" style="display:none">
+            <span>Giảm giá</span>
+            <span class="summary-discount" id="val-discount">—</span>
+          </div>
           <div class="summary-row summary-total">
             <span>Tổng thanh toán</span>
-            <span style="color:var(--primary);font-size:1.4rem">${formatPriceText(orderTotal)}</span>
+            <span style="color:var(--primary);font-size:1.3rem" id="val-total">${formatPriceText(orderTotal)}</span>
           </div>
 
+          <!-- Coupon -->
           <hr class="divider">
+          <h4 style="font-size:.82rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px">Mã giảm giá</h4>
+          <div class="coupon-section">
+            <div class="coupon-input-row">
+              <input type="text" id="coupon-input" class="form-control" placeholder="Nhập mã giảm giá..." style="text-transform:uppercase">
+              <button class="btn btn-outline btn-sm" id="btn-apply-coupon" onclick="applyCoupon()">Áp dụng</button>
+            </div>
+            <div class="coupon-result" id="coupon-result"></div>
+            <div class="coupon-error" id="coupon-error"></div>
+          </div>
 
           <!-- Payment methods -->
-          <h4 style="font-weight:700;font-size:0.9rem;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">Phương thức thanh toán</h4>
+          <hr class="divider">
+          <h4 style="font-size:.82rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px">Phương thức thanh toán</h4>
           <div class="payment-methods">
-            <!-- Standard -->
             <label class="payment-method-card">
-              <input type="radio" name="payment" value="standard" id="pm-standard" checked onchange="onPaymentChange('standard')">
+              <input type="radio" name="payment" value="demo" checked onchange="selectedPayment='demo'">
+              <span class="payment-method-icon">⚡</span>
+              <div>
+                <div class="payment-method-name">Demo (Thanh toán nhanh)</div>
+                <div class="payment-method-desc">Dùng để kiểm thử – xác nhận tức thì</div>
+              </div>
+            </label>
+            <label class="payment-method-card">
+              <input type="radio" name="payment" value="momo" onchange="selectedPayment='momo'">
+              <span class="payment-method-icon">🟣</span>
+              <div>
+                <div class="payment-method-name">MoMo</div>
+                <div class="payment-method-desc">Thanh toán qua ví điện tử MoMo</div>
+              </div>
+            </label>
+            <label class="payment-method-card">
+              <input type="radio" name="payment" value="vnpay" onchange="selectedPayment='vnpay'">
               <span class="payment-method-icon">🏦</span>
-              <div class="payment-method-info">
-                <div class="payment-method-name">Thanh toán tiêu chuẩn</div>
-                <div class="payment-method-desc">Giả lập thanh toán (ngân hàng, thẻ...)</div>
-              </div>
-            </label>
-
-            <!-- Wallet -->
-            <label class="payment-method-card ${!canPayWallet ? 'disabled-method' : ''}">
-              <input type="radio" name="payment" value="wallet" id="pm-wallet" ${!canPayWallet ? 'disabled' : ''} onchange="onPaymentChange('wallet')">
-              <span class="payment-method-icon">💰</span>
-              <div class="payment-method-info">
-                <div class="payment-method-name">Ví điện tử CourseDemy</div>
-                <div class="payment-method-desc">Số dư: <strong style="color:${canPayWallet?'var(--success)':'var(--danger)'}">${Number(walletBalance).toLocaleString('vi-VN')}₫</strong></div>
-                ${!canPayWallet ? `<div class="wallet-insufficient">⚠️ Số dư không đủ.
-                  <a href="#" onclick="openDepositModal(event)">Nạp thêm tiền →</a></div>` : ''}
+              <div>
+                <div class="payment-method-name">VNPay</div>
+                <div class="payment-method-desc">Thanh toán qua cổng VNPay / ATM / Thẻ</div>
               </div>
             </label>
           </div>
 
-          <div style="background:var(--success-bg);border:1px solid var(--success);border-radius:8px;padding:12px;margin:16px 0;font-size:.85rem;color:var(--success)">
-            🔒 Thanh toán an toàn &amp; bảo mật
-          </div>
-          <button class="btn btn-success btn-full btn-lg" id="btn-checkout" onclick="doCheckout()">✅ Xác nhận thanh toán</button>
+          <div class="secure-badge">🔒 Thanh toán an toàn &amp; bảo mật</div>
+
+          <button class="btn btn-success btn-full btn-lg" id="btn-checkout" onclick="doCheckout()">
+            ✅ Xác nhận thanh toán
+          </button>
           <a href="/cart.html" class="btn btn-ghost btn-full" style="margin-top:8px">← Quay lại giỏ hàng</a>
         </div>
       </div>
     </div>`;
 }
 
-function onPaymentChange(method) {
-  selectedPayment = method;
-}
+// ── Coupon ────────────────────────────────────────────────
+async function applyCoupon() {
+  const code = document.getElementById('coupon-input').value.trim().toUpperCase();
+  const errEl = document.getElementById('coupon-error');
+  const resEl = document.getElementById('coupon-result');
+  const btn   = document.getElementById('btn-apply-coupon');
 
-async function doCheckout() {
-  const btn = document.getElementById('btn-checkout');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-sm"></span> Đang xử lý...';
-  showSpinner();
+  errEl.style.display = 'none';
+  resEl.style.display = 'none';
+  appliedCoupon = null;
 
-  // Bước 1: Tạo order
-  const { ok, data } = await apiFetch('/orders/checkout', { method: 'POST' });
+  if (!code) { errEl.textContent = 'Vui lòng nhập mã giảm giá'; errEl.style.display = 'block'; return; }
+
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-sm"></span>';
+
+  const { ok, data } = await apiFetch('/coupons/validate', {
+    method: 'POST',
+    body: JSON.stringify({ code }),
+  });
+
+  btn.disabled = false; btn.textContent = 'Áp dụng';
 
   if (!ok) {
-    hideSpinner();
-    showToast(data.message || 'Không thể tạo đơn hàng', 'error');
-    btn.disabled = false;
-    btn.innerHTML = '✅ Xác nhận thanh toán';
+    errEl.textContent = data.message || 'Mã giảm giá không hợp lệ';
+    errEl.style.display = 'block';
+    updatePriceSummary(null);
     return;
   }
 
-  // Bước 2: Nếu chọn ví, thanh toán bằng ví
-  if (selectedPayment === 'wallet') {
-    const orderId = data.data?.order_id ?? data.data?.id ?? data.order_id;
-    const payRes = await apiFetch('/payments/wallet/pay', {
+  const couponData = data.data;
+  appliedCoupon = { code, ...couponData };
+
+  resEl.textContent = `🎉 Áp dụng thành công! Giảm ${formatPriceText(couponData.discount_amount ?? 0)}`;
+  resEl.style.display = 'block';
+  updatePriceSummary(couponData);
+}
+
+function updatePriceSummary(couponData) {
+  const discountEl = document.getElementById('row-discount');
+  const valDiscount = document.getElementById('val-discount');
+  const valTotal   = document.getElementById('val-total');
+
+  if (!couponData) {
+    discountEl.style.display = 'none';
+    if (valTotal) valTotal.textContent = formatPriceText(orderTotal);
+    return;
+  }
+
+  const discount = couponData.discount_amount ?? 0;
+  const total    = couponData.total_amount ?? (orderTotal - discount);
+  discountEl.style.display = 'flex';
+  valDiscount.textContent  = `-${formatPriceText(discount)}`;
+  valTotal.textContent     = formatPriceText(total);
+}
+
+// ── Checkout ──────────────────────────────────────────────
+async function doCheckout() {
+  const btn = document.getElementById('btn-checkout');
+  btn.disabled = true; btn.innerHTML = '<span class="spinner-sm"></span> Đang xử lý...';
+  showSpinner();
+
+  // Step 1: Create order
+  const orderBody = {};
+  if (appliedCoupon?.code) orderBody.coupon_code = appliedCoupon.code;
+
+  const { ok: ordOk, data: ordData } = await apiFetch('/orders/checkout', {
+    method: 'POST',
+    body: JSON.stringify(orderBody),
+  });
+
+  if (!ordOk) {
+    hideSpinner();
+    showToast(ordData.message || 'Không thể tạo đơn hàng', 'error');
+    btn.disabled = false; btn.innerHTML = '✅ Xác nhận thanh toán';
+    return;
+  }
+
+  const orderId = ordData.data?.order_id ?? ordData.data?.id ?? ordData.order_id;
+
+  // Step 2: Pay
+  if (selectedPayment === 'demo') {
+    const { ok: payOk, data: payData } = await apiFetch('/payments/demo/pay', {
       method: 'POST',
       body: JSON.stringify({ order_id: orderId }),
     });
     hideSpinner();
-
-    if (!payRes.ok) {
-      showToast(payRes.data.message || 'Thanh toán ví thất bại', 'error');
-      btn.disabled = false;
-      btn.innerHTML = '✅ Xác nhận thanh toán';
+    if (!payOk) {
+      showToast(payData.message || 'Thanh toán demo thất bại', 'error');
+      btn.disabled = false; btn.innerHTML = '✅ Xác nhận thanh toán';
       return;
     }
-
-    showToast('Thanh toán ví thành công! 🎉', 'success');
+    showToast('Thanh toán thành công! 🎉', 'success');
     setTimeout(() => window.location.href = '/my-courses.html', 900);
-    return;
+
+  } else if (selectedPayment === 'momo') {
+    const { ok: payOk, data: payData } = await apiFetch('/payments/momo/create', {
+      method: 'POST',
+      body: JSON.stringify({ order_id: orderId }),
+    });
+    hideSpinner();
+    if (!payOk) {
+      showToast(payData.message || 'Không thể tạo thanh toán MoMo', 'error');
+      btn.disabled = false; btn.innerHTML = '✅ Xác nhận thanh toán';
+      return;
+    }
+    const payUrl = payData.data?.payUrl ?? payData.payUrl;
+    if (payUrl) { window.location.href = payUrl; }
+    else { showToast('Không nhận được URL thanh toán MoMo', 'error'); btn.disabled = false; btn.innerHTML = '✅ Xác nhận thanh toán'; }
+
+  } else if (selectedPayment === 'vnpay') {
+    const { ok: payOk, data: payData } = await apiFetch('/payments/vnpay/create', {
+      method: 'POST',
+      body: JSON.stringify({ order_id: orderId }),
+    });
+    hideSpinner();
+    if (!payOk) {
+      showToast(payData.message || 'Không thể tạo thanh toán VNPay', 'error');
+      btn.disabled = false; btn.innerHTML = '✅ Xác nhận thanh toán';
+      return;
+    }
+    const payUrl = payData.data?.payUrl ?? payData.payUrl;
+    if (payUrl) { window.location.href = payUrl; }
+    else { showToast('Không nhận được URL thanh toán VNPay', 'error'); btn.disabled = false; btn.innerHTML = '✅ Xác nhận thanh toán'; }
   }
-
-  // Thanh toán tiêu chuẩn
-  hideSpinner();
-  showToast('Thanh toán thành công! 🎉', 'success');
-  setTimeout(() => window.location.href = '/my-courses.html', 1000);
-}
-
-/* ── Quick Deposit Modal ── */
-function openDepositModal(e) {
-  e?.preventDefault();
-  document.getElementById('deposit-modal').style.display = 'flex';
-}
-function closeDepositModal() {
-  document.getElementById('deposit-modal').style.display = 'none';
-  document.getElementById('modal-deposit-err').style.display = 'none';
-  document.getElementById('modal-deposit-amount').value = '';
-}
-function setModalAmt(val) {
-  document.getElementById('modal-deposit-amount').value = val;
-}
-async function doModalDeposit() {
-  const errEl = document.getElementById('modal-deposit-err');
-  const btn   = document.getElementById('btn-modal-deposit');
-  const amount = parseInt(document.getElementById('modal-deposit-amount').value);
-
-  errEl.style.display = 'none';
-  if (!amount || amount < 10000) {
-    errEl.textContent = 'Vui lòng nhập số tiền tối thiểu 10,000₫';
-    errEl.style.display = 'block';
-    return;
-  }
-
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spinner-sm"></span> Đang nạp...';
-
-  const { ok, data } = await apiFetch('/wallet/deposit', {
-    method: 'POST',
-    body: JSON.stringify({ amount }),
-  });
-
-  btn.disabled = false;
-  btn.innerHTML = '💳 Nạp tiền';
-
-  if (!ok) {
-    errEl.textContent = data.message || 'Nạp tiền thất bại';
-    errEl.style.display = 'block';
-    return;
-  }
-
-  showToast(`Nạp tiền thành công! +${amount.toLocaleString('vi-VN')}₫`, 'success');
-  closeDepositModal();
-  // Reload checkout để cập nhật số dư
-  loadCheckout();
 }
 
 loadCheckout();

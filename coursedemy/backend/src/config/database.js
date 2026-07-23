@@ -126,6 +126,11 @@ if (!orderColumns.find((col) => col.name === 'coupon_id')) {
   db.exec(`ALTER TABLE orders ADD COLUMN coupon_id INTEGER DEFAULT NULL`);
 }
 
+// ── Thêm cột discount_amount vào bảng orders nếu chưa có ─────────────────────
+if (!orderColumns.find((col) => col.name === 'discount_amount')) {
+  db.exec(`ALTER TABLE orders ADD COLUMN discount_amount REAL NOT NULL DEFAULT 0`);
+}
+
 // ── Tạo bảng wallet_transactions ──────────────────────────────────────────────
 db.exec(`
   CREATE TABLE IF NOT EXISTS wallet_transactions (
@@ -253,6 +258,99 @@ db.exec(`
     UNIQUE(notification_id, user_id)
   );
 `);
+
+// ── Tạo bảng coupons (mã giảm giá) ──────────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS coupons (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    code             TEXT UNIQUE NOT NULL,
+    description      TEXT,
+    discount_type    TEXT NOT NULL CHECK(discount_type IN ('percent','fixed')),
+    discount_value   REAL NOT NULL,
+    max_discount     REAL,
+    min_order_amount REAL NOT NULL DEFAULT 0,
+    usage_limit      INTEGER,
+    used_count       INTEGER NOT NULL DEFAULT 0,
+    valid_from       TEXT NOT NULL,
+    valid_to         TEXT NOT NULL,
+    status           TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','inactive')),
+    created_at       TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
+// ── Tạo bảng payments (giao dịch thanh toán qua cổng) ────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS payments (
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    order_id         INTEGER NOT NULL REFERENCES orders(id),
+    method           TEXT NOT NULL CHECK(method IN ('momo','vnpay','demo')),
+    amount           REAL NOT NULL,
+    request_id       TEXT,
+    transaction_id   TEXT,
+    status           TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','success','failed')),
+    gateway_response TEXT,
+    created_at       TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at       TEXT
+  );
+`);
+
+// ── Cho phép status 'failed' trong bảng orders (enforce ở application layer) ─
+// SQLite không hỗ trợ ALTER COLUMN để sửa CHECK constraint trên bảng đã tồn tại.
+// Ta enforce 'failed' ở tầng code; DB chỉ có CHECK cũ ('pending','paid','cancelled').
+// Nếu cần strict enforcement, cần recreate table — bỏ qua ở môi trường dev/sandbox.
+
+// ── Tạo bảng course_sections (quản lý chương khóa học) ───────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS course_sections (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id INTEGER NOT NULL REFERENCES courses(id),
+    title TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+`);
+
+// ── Tạo bảng quiz_questions (câu hỏi quiz) ────────────────────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS quiz_questions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    lesson_id INTEGER NOT NULL REFERENCES lessons(id),
+    question_text TEXT NOT NULL,
+    options TEXT NOT NULL,
+    correct_index INTEGER NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0
+  );
+`);
+
+// ── Nâng cấp bảng lessons: thêm cột type, content_body, duration_seconds ─────
+// (bảng lessons đã tồn tại — dùng ALTER TABLE để tránh mất dữ liệu cũ)
+const lessonColumns = db.prepare("PRAGMA table_info('lessons')").all();
+
+if (!lessonColumns.find((col) => col.name === 'type')) {
+  db.exec(`ALTER TABLE lessons ADD COLUMN type TEXT NOT NULL DEFAULT 'video'`);
+}
+if (!lessonColumns.find((col) => col.name === 'content_body')) {
+  db.exec(`ALTER TABLE lessons ADD COLUMN content_body TEXT`);
+}
+if (!lessonColumns.find((col) => col.name === 'duration_seconds')) {
+  db.exec(`ALTER TABLE lessons ADD COLUMN duration_seconds INTEGER`);
+}
+// section_id trong bảng lessons cũ tham chiếu sections(id); nếu dùng
+// course_sections thì đây là hai bảng song song — không xóa cột cũ.
+
+// ── Nâng cấp bảng lesson_progress: thêm cột is_completed, quiz_score, completed_at ─
+// (bảng đã tồn tại từ trước với cột 'completed'; thêm cột mới để hỗ trợ quiz)
+const progressColumns = db.prepare("PRAGMA table_info('lesson_progress')").all();
+
+if (!progressColumns.find((col) => col.name === 'is_completed')) {
+  db.exec(`ALTER TABLE lesson_progress ADD COLUMN is_completed INTEGER NOT NULL DEFAULT 0`);
+}
+if (!progressColumns.find((col) => col.name === 'quiz_score')) {
+  db.exec(`ALTER TABLE lesson_progress ADD COLUMN quiz_score REAL`);
+}
+if (!progressColumns.find((col) => col.name === 'completed_at')) {
+  db.exec(`ALTER TABLE lesson_progress ADD COLUMN completed_at TEXT`);
+}
 
 console.log('Database connected');
 

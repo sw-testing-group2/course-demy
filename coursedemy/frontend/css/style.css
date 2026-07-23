@@ -2451,8 +2451,13 @@ tbody tr:hover {
 }
 
 @keyframes shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
+  0% {
+    background-position: 200% 0;
+  }
+
+  100% {
+    background-position: -200% 0;
+  }
 }
 
 .skeleton-card {
@@ -2470,10 +2475,21 @@ tbody tr:hover {
   border-radius: 6px;
 }
 
-.skeleton-line.short { width: 40%; }
-.skeleton-line.medium { width: 65%; }
-.skeleton-line.full { width: 100%; }
-.skeleton-line.thin { height: 10px; }
+.skeleton-line.short {
+  width: 40%;
+}
+
+.skeleton-line.medium {
+  width: 65%;
+}
+
+.skeleton-line.full {
+  width: 100%;
+}
+
+.skeleton-line.thin {
+  height: 10px;
+}
 
 /* Instructor Q&A page */
 .qna-inbox-filter {
@@ -2988,7 +3004,7 @@ tbody tr:hover {
    CERTIFICATE BANNER (learn.html completion)
 ══════════════════════════════════════════════════════ */
 .cert-banner {
-  background: linear-gradient(135deg, rgba(251,191,36,.15), rgba(245,158,11,.1));
+  background: linear-gradient(135deg, rgba(251, 191, 36, .15), rgba(245, 158, 11, .1));
   border: 1px solid var(--warning);
   border-radius: var(--radius);
   padding: 18px 20px;
@@ -3069,4 +3085,4 @@ tbody tr:hover {
   color: var(--primary);
   display: inline-block;
   margin-top: 8px;
-}
+}

@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Kết quả thanh toán – CourseDemy</title>
+  <meta name="description" content="Kết quả giao dịch thanh toán khóa học trên CourseDemy.">
+  <link rel="stylesheet" href="css/style.css">
+  <style>
+    .result-page {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background:
+        radial-gradient(ellipse at 60% 20%, rgba(99,102,241,.08) 0%, transparent 60%),
+        radial-gradient(ellipse at 20% 80%, rgba(52,211,153,.05) 0%, transparent 50%),
+        var(--bg);
+    }
+    .result-card {
+      width: 100%; max-width: 480px;
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 48px 40px;
+      text-align: center;
+      box-shadow: var(--shadow-lg);
+      animation: slideUp .4s ease;
+    }
+    @keyframes slideUp {
+      from { opacity:0; transform: translateY(24px); }
+      to   { opacity:1; transform: translateY(0); }
+    }
+    .result-icon { font-size: 5rem; margin-bottom: 20px; line-height: 1; }
+    .result-title { font-size: 1.6rem; font-weight: 800; margin-bottom: 10px; }
+    .result-subtitle { font-size: .95rem; color: var(--text-dim); margin-bottom: 32px; line-height: 1.6; }
+    .result-actions { display: flex; flex-direction: column; gap: 12px; }
+
+    /* Status-specific colors */
+    .status-paid .result-title   { color: var(--success); }
+    .status-paid { border-color: var(--success); }
+    .status-failed .result-title { color: var(--danger); }
+    .status-failed { border-color: var(--danger); }
+    .status-pending .result-title { color: var(--warning); }
+    .status-pending { border-color: var(--warning); }
+
+    /* Polling indicator */
+    .polling-dot {
+      display: inline-block;
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--warning);
+      animation: pulse 1.2s ease infinite;
+      margin: 0 2px;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .polling-info {
+      background: var(--warning-bg);
+      border: 1px solid var(--warning);
+      border-radius: var(--radius-sm);
+      padding: 12px 16px;
+      font-size: .85rem;
+      color: var(--warning);
+      margin-bottom: 20px;
+    }
+    .order-id-box {
+      background: var(--bg-2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      padding: 10px 16px;
+      font-size: .82rem;
+      color: var(--text-dim);
+      margin-bottom: 20px;
+    }
+    .order-id-box strong { color: var(--text); font-family: monospace; }
+  </style>
+</head>
+<body>
+<nav id="navbar"></nav>
+<div id="toast-container"></div>
+<div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
+
+<div class="result-page">
+  <div class="result-card" id="result-card">
+    <div class="result-icon">⏳</div>
+    <div class="result-title">Đang kiểm tra...</div>
+    <div class="result-subtitle">Vui lòng chờ trong giây lát.</div>
+  </div>
+</div>
+
+<script src="js/api.js"></script>
+<script>
+renderNavbar();
+
+const params   = new URLSearchParams(location.search);
+const orderId  = params.get('orderId') || params.get('order_id') || params.get('vnp_TxnRef');
+const statusQ  = params.get('status') || params.get('vnp_ResponseCode');
+
+let pollCount = 0;
+const MAX_POLLS = 10;
+let pollTimer = null;
+
+async function checkStatus() {
+  if (!orderId) {
+    renderResult('unknown', null);
+    return;
+  }
+
+  const { ok, data } = await apiFetch(`/payments/${orderId}/status`);
+  if (!ok) {
+    // Use URL param as fallback
+    renderResult(statusQ || 'unknown', null);
+    return;
+  }
+
+  const order = data.data;
+  const status = order?.status ?? statusQ ?? 'unknown';
+
+  if (status === 'pending' && pollCount < MAX_POLLS) {
+    renderPending(order);
+    pollCount++;
+    pollTimer = setTimeout(checkStatus, 3000);
+  } else {
+    if (pollTimer) clearTimeout(pollTimer);
+    renderResult(status, order);
+  }
+}
+
+function renderPending(order) {
+  const card = document.getElementById('result-card');
+  card.className = 'result-card status-pending';
+  card.innerHTML = `
+    <div class="result-icon">⏳</div>
+    <div class="result-title">Đang chờ xác nhận</div>
+    ${orderId ? `<div class="order-id-box">Mã đơn: <strong>${orderId}</strong></div>` : ''}
+    <div class="polling-info">
+      <span class="polling-dot"></span>
+      <span class="polling-dot" style="animation-delay:.3s"></span>
+      <span class="polling-dot" style="animation-delay:.6s"></span>
+      &nbsp; Đang kiểm tra trạng thái... (${pollCount}/${MAX_POLLS})
+    </div>
+    <div class="result-subtitle">Giao dịch đang được xử lý. Trang sẽ tự cập nhật.</div>
+    <div class="result-actions">
+      <a href="/my-courses.html" class="btn btn-outline">📚 Xem khóa học của tôi</a>
+      <a href="/index.html" class="btn btn-ghost">🏠 Về trang chủ</a>
+    </div>`;
+}
+
+function renderResult(status, order) {
+  const card = document.getElementById('result-card');
+
+  // Normalize VNPay response codes: 00 = success
+  const isPaid = status === 'paid' || status === '00' || status === 'completed';
+  const isFail = status === 'failed' || status === 'cancelled' || status === 'canceled';
+
+  if (isPaid) {
+    card.className = 'result-card status-paid';
+    card.innerHTML = `
+      <div class="result-icon">🎉</div>
+      <div class="result-title">Thanh toán thành công!</div>
+      ${orderId ? `<div class="order-id-box">Mã đơn: <strong>${orderId}</strong></div>` : ''}
+      <div class="result-subtitle">Cảm ơn bạn đã mua khóa học. Bạn có thể bắt đầu học ngay bây giờ!</div>
+      <div class="result-actions">
+        <a href="/my-courses.html" class="btn btn-success btn-lg">📚 Xem khóa học của tôi</a>
+        <a href="/index.html" class="btn btn-ghost">🏠 Về trang chủ</a>
+      </div>`;
+  } else if (isFail) {
+    card.className = 'result-card status-failed';
+    card.innerHTML = `
+      <div class="result-icon">❌</div>
+      <div class="result-title">Thanh toán thất bại</div>
+      ${orderId ? `<div class="order-id-box">Mã đơn: <strong>${orderId}</strong></div>` : ''}
+      <div class="result-subtitle">Giao dịch không thành công hoặc đã bị hủy. Vui lòng thử lại.</div>
+      <div class="result-actions">
+        <a href="/checkout.html" class="btn btn-danger btn-lg">🔄 Thử lại</a>
+        <a href="/cart.html" class="btn btn-outline">🛒 Về giỏ hàng</a>
+        <a href="/index.html" class="btn btn-ghost">🏠 Về trang chủ</a>
+      </div>`;
+  } else {
+    // pending exhausted or unknown
+    card.className = 'result-card status-pending';
+    card.innerHTML = `
+      <div class="result-icon">⏳</div>
+      <div class="result-title">Chờ xác nhận thanh toán</div>
+      ${orderId ? `<div class="order-id-box">Mã đơn: <strong>${orderId}</strong></div>` : ''}
+      <div class="result-subtitle">Giao dịch đang được xử lý bởi cổng thanh toán. Vui lòng kiểm tra lại sau vài phút.</div>
+      <div class="result-actions">
+        <a href="/my-courses.html" class="btn btn-warning btn-lg">📚 Xem khóa học của tôi</a>
+        <a href="/checkout.html" class="btn btn-outline">🔄 Thử lại</a>
+        <a href="/index.html" class="btn btn-ghost">🏠 Về trang chủ</a>
+      </div>`;
+  }
+}
+
+// Init
+checkStatus();
+</script>
+</body>
+</html>

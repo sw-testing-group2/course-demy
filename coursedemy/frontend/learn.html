@@ -3,662 +3,670 @@
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Học bài – CourseDemy</title>
-  <meta name="description" content="Xem bài học và tương tác Hỏi & Đáp cùng giảng viên trên CourseDemy.">
+  <meta name="description" content="Xem bài học, quiz và theo dõi tiến độ học tập trên CourseDemy.">
   <link rel="stylesheet" href="css/style.css">
+  <style>
+    /* ── Learn Page Layout ── */
+    .learn-page { display: flex; flex-direction: column; min-height: 100vh; }
+
+    /* Progress bar */
+    .learn-progress-bar-wrap {
+      background: var(--bg-2);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .learn-progress-bar-label { font-size: .82rem; color: var(--text-dim); white-space: nowrap; font-weight: 600; }
+    .learn-progress-track {
+      flex: 1; height: 8px; background: var(--border);
+      border-radius: 100px; overflow: hidden;
+    }
+    .learn-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--primary-dark), var(--success));
+      border-radius: 100px;
+      transition: width 0.5s ease;
+    }
+    .learn-progress-pct { font-size: .82rem; font-weight: 700; color: var(--primary); min-width: 38px; text-align: right; }
+
+    /* Not enrolled banner */
+    .not-enrolled-banner {
+      background: var(--warning-bg);
+      border: 1px solid var(--warning);
+      border-radius: var(--radius-sm);
+      padding: 14px 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: .9rem;
+      color: var(--warning);
+      margin-bottom: 20px;
+    }
+    .not-enrolled-banner a { color: var(--warning); text-decoration: underline; }
+
+    /* 2-column learn layout */
+    .learn-body {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* Sidebar */
+    .learn-sidebar {
+      background: var(--bg-2);
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      max-height: calc(100vh - 130px);
+      position: sticky;
+      top: 64px;
+    }
+    .sidebar-header {
+      padding: 16px 20px;
+      font-size: .82rem;
+      font-weight: 700;
+      color: var(--text-dim);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-2);
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+    .section-group { border-bottom: 1px solid var(--border); }
+    .section-title {
+      padding: 12px 20px;
+      font-size: .85rem;
+      font-weight: 700;
+      color: var(--text-dim);
+      background: rgba(255,255,255,.02);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      user-select: none;
+    }
+    .section-title:hover { background: var(--bg-hover); }
+    .section-lessons { list-style: none; }
+    .lesson-row {
+      padding: 10px 20px 10px 28px;
+      font-size: .88rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      border-left: 3px solid transparent;
+      transition: all var(--transition);
+      color: var(--text-dim);
+    }
+    .lesson-row:hover { background: var(--bg-hover); color: var(--text); }
+    .lesson-row.active {
+      border-left-color: var(--primary);
+      background: var(--primary-glow);
+      color: var(--primary);
+    }
+    .lesson-row.locked { cursor: default; opacity: .55; }
+    .lesson-row .lesson-icon { font-size: .9rem; flex-shrink: 0; }
+    .lesson-row .lesson-name { flex: 1; line-height: 1.4; }
+    .lesson-row .done-check { color: var(--success); font-size: .85rem; flex-shrink: 0; }
+    .lesson-row .preview-tag {
+      font-size: .68rem; padding: 1px 6px;
+      background: var(--info-bg); color: var(--info);
+      border-radius: 100px; flex-shrink: 0;
+    }
+
+    /* Main content area */
+    .learn-main {
+      overflow-y: auto;
+      max-height: calc(100vh - 130px);
+      padding: 24px 32px;
+    }
+
+    /* Video area */
+    .lesson-video-wrap {
+      width: 100%;
+      aspect-ratio: 16/9;
+      background: #000;
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+    .lesson-video-wrap iframe,
+    .lesson-video-wrap video {
+      width: 100%; height: 100%; border: none; display: block;
+    }
+    .lesson-video-placeholder {
+      width: 100%; height: 100%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 4rem; color: var(--text-muted);
+      background: linear-gradient(135deg, var(--bg-card), var(--bg-2));
+    }
+
+    /* Lesson content */
+    .lesson-header { margin-bottom: 20px; }
+    .lesson-header h2 { font-size: 1.3rem; font-weight: 700; margin-bottom: 6px; }
+    .lesson-header p { font-size: .88rem; color: var(--text-dim); }
+    .lesson-type-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 3px 10px; border-radius: 100px; font-size: .72rem; font-weight: 600;
+      margin-bottom: 10px;
+    }
+    .type-video { background: var(--primary-glow); color: var(--primary); }
+    .type-content { background: var(--info-bg); color: var(--info); }
+    .type-quiz { background: var(--warning-bg); color: var(--warning); }
+
+    .content-body {
+      line-height: 1.85;
+      font-size: .95rem;
+      color: var(--text);
+    }
+    .content-body p { margin-bottom: 12px; }
+
+    /* Complete button area */
+    .complete-area {
+      display: flex; align-items: center; gap: 12px;
+      margin-top: 24px; padding-top: 20px;
+      border-top: 1px solid var(--border);
+    }
+    .completed-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      color: var(--success); font-size: .88rem; font-weight: 600;
+    }
+
+    /* Quiz */
+    .quiz-wrap { display: flex; flex-direction: column; gap: 24px; }
+    .quiz-question-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+    }
+    .quiz-question-text { font-weight: 600; margin-bottom: 16px; line-height: 1.6; }
+    .quiz-options { display: flex; flex-direction: column; gap: 10px; }
+    .quiz-option-label {
+      display: flex; align-items: center; gap: 12px;
+      padding: 12px 16px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      transition: all var(--transition);
+      font-size: .92rem;
+    }
+    .quiz-option-label:hover { border-color: var(--primary); background: var(--primary-glow); }
+    .quiz-option-label:has(input:checked) { border-color: var(--primary); background: var(--primary-glow); color: var(--primary); }
+    .quiz-option-label input { accent-color: var(--primary); flex-shrink: 0; }
+    .quiz-option-label.correct { border-color: var(--success) !important; background: var(--success-bg) !important; color: var(--success) !important; }
+    .quiz-option-label.wrong { border-color: var(--danger) !important; background: var(--danger-bg) !important; color: var(--danger) !important; }
+
+    .quiz-submit-area { margin-top: 8px; }
+    .quiz-result-box {
+      background: var(--bg-card);
+      border-radius: var(--radius);
+      padding: 24px;
+      text-align: center;
+      border: 1px solid var(--border);
+    }
+    .quiz-score { font-size: 2.5rem; font-weight: 800; color: var(--primary); margin-bottom: 8px; }
+    .quiz-score-label { font-size: .95rem; color: var(--text-dim); }
+
+    /* Locked lesson */
+    .locked-lesson {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 300px; text-align: center; gap: 16px;
+      color: var(--text-dim);
+    }
+    .locked-lesson .lock-icon { font-size: 3.5rem; }
+    .locked-lesson h3 { font-size: 1.1rem; font-weight: 700; color: var(--text); }
+    .locked-lesson p { font-size: .9rem; max-width: 380px; }
+
+    /* Welcome state */
+    .welcome-state {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      min-height: 350px; text-align: center; gap: 12px; color: var(--text-dim);
+    }
+    .welcome-state .welcome-icon { font-size: 4rem; }
+
+    /* Cert banner */
+    .cert-banner {
+      display: flex; align-items: center; gap: 16px;
+      background: linear-gradient(135deg, #1a2b1a, #0f2b0f);
+      border: 1px solid var(--success);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      margin-bottom: 20px;
+    }
+    .cert-banner-icon { font-size: 2.5rem; flex-shrink: 0; }
+    .cert-banner-text { flex: 1; }
+    .cert-banner-title { font-weight: 700; color: var(--success); font-size: 1rem; }
+    .cert-banner-sub { font-size: .85rem; color: var(--text-dim); margin-top: 4px; }
+
+    @media (max-width: 900px) {
+      .learn-body { grid-template-columns: 1fr; }
+      .learn-sidebar { max-height: 280px; position: static; }
+      .learn-main { max-height: none; padding: 16px; }
+    }
+  </style>
 </head>
-<body>
+<body class="learn-page">
 <nav id="navbar"></nav>
 <div id="toast-container"></div>
 <div id="spinner" class="hidden"><div class="spinner-ring"></div></div>
 
-<div class="container">
-  <div class="learn-layout" id="learn-layout">
+<!-- Progress bar -->
+<div class="learn-progress-bar-wrap" id="progress-bar-wrap" style="display:none">
+  <span class="learn-progress-bar-label">Tiến độ:</span>
+  <div class="learn-progress-track">
+    <div class="learn-progress-fill" id="progress-fill" style="width:0%"></div>
+  </div>
+  <span class="learn-progress-pct" id="progress-pct">0%</span>
+</div>
 
-    <!-- ═══ LEFT: video + tabs ═══ -->
-    <div class="learn-main">
-      <div class="learn-video-wrap" id="video-wrap">🎬</div>
+<div class="learn-body">
+  <!-- Left: Sidebar -->
+  <aside class="learn-sidebar" id="sidebar">
+    <div class="sidebar-header">📚 Nội dung khóa học</div>
+    <div id="curriculum-list"><div style="padding:24px;text-align:center"><div class="spinner-ring" style="margin:auto"></div></div></div>
+  </aside>
 
-      <div id="lesson-info" style="margin-bottom:18px">
-        <h2 id="lesson-title" style="font-size:1.15rem;font-weight:700;margin-bottom:4px">Đang tải bài học...</h2>
-        <p id="lesson-desc" style="font-size:0.88rem;color:var(--text-dim)"></p>
+  <!-- Right: Content -->
+  <main class="learn-main" id="learn-main">
+    <div id="not-enrolled-banner" style="display:none" class="not-enrolled-banner">
+      ⚠️ Bạn cần mua khóa học này để xem đầy đủ nội dung.
+      <a id="not-enrolled-link" href="#">Xem khóa học →</a>
+    </div>
+    <div id="cert-banner" style="display:none" class="cert-banner">
+      <div class="cert-banner-icon">🏆</div>
+      <div class="cert-banner-text">
+        <div class="cert-banner-title">Chúc mừng! Bạn đã hoàn thành khóa học!</div>
+        <div class="cert-banner-sub">Tải chứng chỉ hoàn thành để lưu trữ và chia sẻ thành tích của bạn.</div>
       </div>
-
-      <!-- Certificate completion banner (shown when progress = 100%) -->
-      <div id="cert-banner" style="display:none" class="cert-banner">
-        <div class="cert-banner-icon">🏆</div>
-        <div class="cert-banner-text">
-          <div class="cert-banner-title">Chúc mừng! Bạn đã hoàn thành khóa học!</div>
-          <div class="cert-banner-sub">Tải chứng chỉ hoàn thành để lưu trữ và chia sẻ thành tích của bạn.</div>
-        </div>
-        <button class="btn btn-warning" id="btn-dl-cert" onclick="downloadCourseCert()">
-          📥 Tải chứng chỉ hoàn thành
-        </button>
-      </div>
-
-      <!-- Tab bar -->
-      <div class="tab-bar" role="tablist">
-        <button class="tab-btn active" id="tab-btn-content" role="tab" onclick="switchTab('content')">📖 Nội dung</button>
-        <button class="tab-btn" id="tab-btn-qna" role="tab" onclick="switchTab('qna')">💬 Hỏi &amp; Đáp <span id="qna-count-badge" style="font-size:.75rem;color:var(--primary)"></span></button>
-        <button class="tab-btn" id="tab-btn-notes" role="tab" onclick="switchTab('notes')">📝 Ghi chú</button>
-      </div>
-
-      <!-- Tab: Nội dung -->
-      <div class="tab-panel active" id="panel-content">
-        <div id="lesson-content-body" style="color:var(--text-dim);line-height:1.8;font-size:.93rem">
-          Chọn một bài học từ danh sách bên để bắt đầu học.
-        </div>
-        <!-- Mark complete button (student only, shown after lesson loads) -->
-        <div id="lesson-complete-wrap" style="display:none;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
-          <button class="btn btn-success btn-sm" id="btn-mark-complete" onclick="markThisLessonComplete()">
-            ✅ Đánh dấu hoàn thành bài học
-          </button>
-          <span id="lesson-done-badge" style="display:none;margin-left:10px;font-size:.84rem;color:var(--success)">✔ Đã hoàn thành</span>
-        </div>
-      </div>
-
-      <!-- Tab: Hỏi & Đáp -->
-      <div class="tab-panel" id="panel-qna">
-        <!-- LIST VIEW -->
-        <div class="qna-list-view" id="qna-list-view">
-          <div class="qna-toolbar">
-            <div class="qna-search-wrap">
-              <span class="qna-search-icon">🔍</span>
-              <input type="text" class="form-control" id="qna-search-input" placeholder="Tìm câu hỏi..." oninput="onQnaSearch()">
-            </div>
-            <button class="btn btn-primary btn-sm" id="btn-new-question" onclick="toggleNewForm()">✏️ Đặt câu hỏi mới</button>
-          </div>
-
-          <!-- New question form -->
-          <div class="qna-new-form" id="qna-new-form">
-            <div class="qna-new-form-title">✏️ Đặt câu hỏi mới</div>
-            <div class="form-group">
-              <label for="new-q-title">Tiêu đề câu hỏi</label>
-              <input type="text" class="form-control" id="new-q-title" placeholder="Tóm tắt câu hỏi của bạn...">
-            </div>
-            <div class="form-group">
-              <label for="new-q-body">Nội dung chi tiết</label>
-              <textarea class="form-control" id="new-q-body" placeholder="Mô tả chi tiết câu hỏi, lỗi gặp phải, hoặc phần nội dung bạn chưa hiểu..."></textarea>
-            </div>
-            <div style="display:flex;gap:10px">
-              <button class="btn btn-primary" id="btn-submit-question" onclick="submitQuestion()">📤 Gửi câu hỏi</button>
-              <button class="btn btn-ghost" onclick="toggleNewForm()">Hủy</button>
-            </div>
-          </div>
-
-          <!-- Question list -->
-          <div id="qna-list-container">
-            <!-- skeleton -->
-            <div class="qna-question-list" id="qna-skeleton">
-              <div class="skeleton-card">
-                <div style="display:flex;gap:10px;align-items:center">
-                  <div class="skeleton" style="width:36px;height:36px;border-radius:50%"></div>
-                  <div style="flex:1;display:flex;flex-direction:column;gap:6px">
-                    <div class="skeleton skeleton-line short"></div>
-                    <div class="skeleton skeleton-line thin" style="width:30%"></div>
-                  </div>
-                </div>
-                <div class="skeleton skeleton-line medium"></div>
-                <div class="skeleton skeleton-line full thin"></div>
-              </div>
-              <div class="skeleton-card">
-                <div style="display:flex;gap:10px;align-items:center">
-                  <div class="skeleton" style="width:36px;height:36px;border-radius:50%"></div>
-                  <div style="flex:1;display:flex;flex-direction:column;gap:6px">
-                    <div class="skeleton skeleton-line short"></div>
-                    <div class="skeleton skeleton-line thin" style="width:30%"></div>
-                  </div>
-                </div>
-                <div class="skeleton skeleton-line medium"></div>
-                <div class="skeleton skeleton-line full thin"></div>
-              </div>
-              <div class="skeleton-card">
-                <div style="display:flex;gap:10px;align-items:center">
-                  <div class="skeleton" style="width:36px;height:36px;border-radius:50%"></div>
-                  <div style="flex:1;display:flex;flex-direction:column;gap:6px">
-                    <div class="skeleton skeleton-line short"></div>
-                    <div class="skeleton skeleton-line thin" style="width:30%"></div>
-                  </div>
-                </div>
-                <div class="skeleton skeleton-line medium"></div>
-                <div class="skeleton skeleton-line full thin"></div>
-              </div>
-            </div>
-            <div class="qna-question-list" id="qna-list" style="display:none"></div>
-          </div>
-          <div class="pagination" id="qna-pagination"></div>
-        </div>
-
-        <!-- DETAIL VIEW -->
-        <div class="qna-detail-view" id="qna-detail-view">
-          <button class="qna-back-btn" onclick="backToList()">← Quay lại danh sách</button>
-          <div class="qna-detail-question" id="qna-detail-question-el">
-            <div class="empty-state"><div class="spinner-ring"></div></div>
-          </div>
-          <div id="qna-answers-section">
-            <div class="empty-state"><div class="spinner-ring"></div></div>
-          </div>
-          <!-- Reply form -->
-          <div class="qna-reply-form" id="qna-reply-form">
-            <div class="qna-reply-form-title">💬 Viết câu trả lời</div>
-            <textarea class="form-control" id="reply-textarea" placeholder="Chia sẻ kiến thức hoặc kinh nghiệm của bạn..."></textarea>
-            <div style="margin-top:10px;display:flex;gap:8px">
-              <button class="btn btn-primary btn-sm" id="btn-submit-reply" onclick="submitReply()">📤 Gửi câu trả lời</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Tab: Ghi chú -->
-      <div class="tab-panel" id="panel-notes">
-        <div style="color:var(--text-dim);padding:24px 0;text-align:center">
-          <div style="font-size:3rem;margin-bottom:12px">📝</div>
-          <p>Tính năng ghi chú đang được phát triển.</p>
-        </div>
+      <button class="btn btn-warning" id="btn-dl-cert" onclick="downloadCourseCert()">📥 Tải chứng chỉ</button>
+    </div>
+    <div id="lesson-panel">
+      <div class="welcome-state">
+        <div class="welcome-icon">🎓</div>
+        <h3 style="font-size:1.2rem;font-weight:700;color:var(--text)">Chọn một bài học để bắt đầu</h3>
+        <p>Chọn bài học từ danh sách bên trái.</p>
       </div>
     </div>
-
-    <!-- ═══ RIGHT: curriculum sidebar ═══ -->
-    <aside class="learn-sidebar">
-      <div style="margin-bottom:12px">
-        <h3 style="font-size:.9rem;font-weight:700;color:var(--text-dim);text-transform:uppercase;letter-spacing:.5px">Nội dung khóa học</h3>
-      </div>
-      <div class="curriculum-list" id="curriculum-list">
-        <div class="empty-state" style="padding:24px"><div class="spinner-ring"></div></div>
-      </div>
-    </aside>
-  </div>
+  </main>
 </div>
 
 <script src="js/api.js"></script>
-<script src="js/notifications.js"></script>
 <script>
-// ── Auth ──────────────────────────────────────────────────────────────────────
 if (!requireAuth('/login.html')) throw 0;
-renderNavbar('');
+renderNavbar('my-courses');
 
 const currentUser = getUser();
 const params = new URLSearchParams(location.search);
-const courseId  = parseInt(params.get('courseId'));
-const lessonIdParam = parseInt(params.get('lessonId'));
+const courseId = parseInt(params.get('courseId'));
 
-if (!courseId) { document.body.innerHTML = '<div class="container section"><p style="color:var(--danger)">Thiếu tham số khóa học.</p></div>'; throw 0; }
+if (!courseId) {
+  document.body.innerHTML = '<div class="container section"><p style="color:var(--danger)">Thiếu tham số courseId.</p></div>';
+  throw 0;
+}
 
-// ── State ─────────────────────────────────────────────────────────────────────
+let isEnrolled = false;
+let progressPercent = 0;
 let currentLessonId = null;
-let currentQuestionId = null;
-let qnaPage = 1, qnaTotalPages = 1;
-let qnaSearchTimeout = null;
-let allQuestions = [];
+let allSectionsData = [];
+let quizSubmitted = false; // track per lesson-view session
 
-// ── Time helper ───────────────────────────────────────────────────────────────
-function timeAgo(dateStr) {
-  const diff = (Date.now() - new Date(dateStr).getTime()) / 1000;
-  if (diff < 60) return 'vừa xong';
-  if (diff < 3600) return `${Math.floor(diff/60)} phút trước`;
-  if (diff < 86400) return `${Math.floor(diff/3600)} giờ trước`;
-  if (diff < 604800) return `${Math.floor(diff/86400)} ngày trước`;
-  if (diff < 2592000) return `${Math.floor(diff/604800)} tuần trước`;
-  return `${Math.floor(diff/2592000)} tháng trước`;
+// ── Update progress UI ──────────────────────────────────
+function updateProgressUI(pct) {
+  progressPercent = Math.round(pct ?? 0);
+  const wrap = document.getElementById('progress-bar-wrap');
+  const fill = document.getElementById('progress-fill');
+  const label = document.getElementById('progress-pct');
+  wrap.style.display = 'flex';
+  fill.style.width = progressPercent + '%';
+  label.textContent = progressPercent + '%';
+  // Show cert banner
+  const certBanner = document.getElementById('cert-banner');
+  if (certBanner) certBanner.style.display = (progressPercent >= 100 && isEnrolled) ? 'flex' : 'none';
 }
 
-function avatarInitial(name) {
-  return (name || '?').charAt(0).toUpperCase();
-}
+// ── Load sections + enrollment status ────────────────────
+async function loadCourse() {
+  showSpinner();
+  const { ok, data } = await apiFetch(`/courses/${courseId}/sections`);
+  hideSpinner();
 
-// ── Tab switching ─────────────────────────────────────────────────────────────
-function switchTab(tab) {
-  ['content','qna','notes'].forEach(t => {
-    document.getElementById(`tab-btn-${t}`).classList.toggle('active', t === tab);
-    document.getElementById(`panel-${t}`).classList.toggle('active', t === tab);
-  });
-  if (tab === 'qna' && currentLessonId && !allQuestions.length) {
-    loadQuestions(1);
-  }
-}
-
-// ── Load curriculum ───────────────────────────────────────────────────────────
-async function loadCurriculum() {
-  const { ok, data } = await apiFetch(`/courses/${courseId}`);
   if (!ok) {
-    document.getElementById('curriculum-list').innerHTML = `<div class="empty-state"><p class="empty-text">Không tải được nội dung.</p></div>`;
-    return;
-  }
-  const course = data.data;
-  const sections = course.sections || [];
-
-  if (!sections.length) {
-    document.getElementById('curriculum-list').innerHTML = `<div class="empty-state" style="padding:24px"><div class="empty-icon" style="font-size:2rem">📭</div><p class="empty-text">Khóa học chưa có bài học.</p></div>`;
+    document.getElementById('curriculum-list').innerHTML =
+      `<div style="padding:20px;color:var(--danger)">${data.message || 'Không tải được nội dung.'}</div>`;
     return;
   }
 
-  let html = '';
+  isEnrolled = data.data?.enrolled ?? false;
+  const sections = data.data?.sections ?? data.data ?? [];
+  allSectionsData = sections;
+
+  // Update not-enrolled banner
+  const banner = document.getElementById('not-enrolled-banner');
+  const link   = document.getElementById('not-enrolled-link');
+  if (!isEnrolled) {
+    banner.style.display = 'flex';
+    link.href = `/course.html?id=${courseId}`;
+  }
+
+  // Show progress bar only for enrolled students
+  if (isEnrolled && currentUser?.role === 'student') {
+    await refreshProgress();
+  }
+
+  // Render sidebar
+  renderSidebar(sections);
+
+  // Auto-select first accessible lesson
+  const lessonIdParam = parseInt(params.get('lessonId')) || 0;
   let firstLesson = null;
+  for (const sec of sections) {
+    for (const lesson of (sec.lessons || [])) {
+      if (!firstLesson && (isEnrolled || lesson.is_preview)) firstLesson = lesson;
+      if (lessonIdParam && lesson.id === lessonIdParam) { selectLesson(lesson); return; }
+    }
+  }
+  if (firstLesson) selectLesson(firstLesson);
+}
+
+async function refreshProgress() {
+  const { ok, data } = await apiFetch(`/enrollments/${courseId}/progress`);
+  if (ok && data.data) {
+    updateProgressUI(data.data.progress_percent ?? 0);
+  }
+}
+
+// ── Render sidebar ────────────────────────────────────────
+function renderSidebar(sections) {
+  if (!sections.length) {
+    document.getElementById('curriculum-list').innerHTML =
+      '<div style="padding:24px;text-align:center;color:var(--text-dim)">Khóa học chưa có bài học.</div>';
+    return;
+  }
+  let html = '';
   sections.forEach(sec => {
-    html += `<div class="curriculum-section"><div class="curriculum-section-title">${sec.title}</div>`;
+    html += `<div class="section-group">
+      <div class="section-title">
+        <span>${sec.title}</span>
+        <span style="font-size:.75rem;font-weight:400;color:var(--text-muted)">${(sec.lessons || []).length} bài</span>
+      </div>
+      <ul class="section-lessons">`;
     (sec.lessons || []).forEach(lesson => {
-      if (!firstLesson) firstLesson = lesson;
-      const icon = lesson.video_url ? '▶️' : '📄';
-      html += `<div class="lesson-item" id="li-${lesson.id}" onclick="selectLesson(${lesson.id}, this)">
-        <span class="lesson-item-icon">${icon}</span>
-        <span>${lesson.title}</span>
-      </div>`;
+      const accessible = isEnrolled || lesson.is_preview;
+      const isCompleted = lesson.progress?.is_completed ?? false;
+      // Backend returns `type`, not `lesson_type`
+      const lessonType = lesson.type || lesson.lesson_type || 'content';
+      const icon = lessonType === 'video' ? '▶' :
+                   lessonType === 'quiz'  ? '📝' : '📄';
+      const lockedIcon = !accessible ? '🔒' : '';
+      html += `<li class="lesson-row${!accessible ? ' locked' : ''}${isCompleted ? ' completed' : ''}" 
+                   id="lr-${lesson.id}"
+                   onclick="${accessible ? `selectLesson_byId(${lesson.id})` : ''}">
+        <span class="lesson-icon">${lockedIcon || icon}</span>
+        <span class="lesson-name">${lesson.title}</span>
+        ${lesson.is_preview && !isEnrolled ? '<span class="preview-tag">Xem thử</span>' : ''}
+        ${isCompleted ? '<span class="done-check">✓</span>' : ''}
+      </li>`;
     });
-    html += `</div>`;
+    html += `</ul></div>`;
   });
   document.getElementById('curriculum-list').innerHTML = html;
+}
 
-  // Select lesson from URL or first
-  const targetId = lessonIdParam || (firstLesson?.id);
-  if (targetId) {
-    const el = document.getElementById(`li-${targetId}`);
-    if (el) selectLesson(targetId, el);
+function selectLesson_byId(id) {
+  for (const sec of allSectionsData) {
+    for (const lesson of (sec.lessons || [])) {
+      if (lesson.id === id) { selectLesson(lesson); return; }
+    }
   }
 }
 
-async function selectLesson(lessonId, el) {
-  if (currentLessonId === lessonId) return;
-  currentLessonId = lessonId;
+// ── Select & render lesson ────────────────────────────────
+function selectLesson(lesson) {
+  if (currentLessonId === lesson.id) return;
+  currentLessonId = lesson.id;
+  quizSubmitted = false;
 
-  // Update active state
-  document.querySelectorAll('.lesson-item').forEach(li => li.classList.remove('active'));
-  el?.classList.add('active');
-
-  // Reset Q&A state
-  allQuestions = [];
-  qnaPage = 1;
-  currentQuestionId = null;
-  document.getElementById('qna-count-badge').textContent = '';
+  // Update sidebar active state
+  document.querySelectorAll('.lesson-row').forEach(r => r.classList.remove('active'));
+  const row = document.getElementById(`lr-${lesson.id}`);
+  if (row) row.classList.add('active');
 
   // Update URL
   const u = new URL(location.href);
-  u.searchParams.set('lessonId', lessonId);
+  u.searchParams.set('lessonId', lesson.id);
   history.replaceState({}, '', u);
 
-  // Load lesson detail
+  // Check accessible
+  const accessible = isEnrolled || lesson.is_preview;
+  if (!accessible) { renderLocked(lesson); return; }
+
+  // Backend returns `type`, not `lesson_type`
+  const type = lesson.type || lesson.lesson_type || 'content';
+  if (type === 'video')        renderVideo(lesson);
+  else if (type === 'quiz')    renderQuiz(lesson);
+  else                         renderContent(lesson);
+}
+
+// ── Render: Locked ───────────────────────────────────────
+function renderLocked(lesson) {
+  document.getElementById('lesson-panel').innerHTML = `
+    <div class="locked-lesson">
+      <div class="lock-icon">🔒</div>
+      <h3>${lesson.title}</h3>
+      <p>Mua khóa học để mở khóa bài này và truy cập toàn bộ nội dung.</p>
+      <a href="/course.html?id=${courseId}" class="btn btn-primary">Xem khóa học</a>
+    </div>`;
+}
+
+// ── Render: Video ────────────────────────────────────────
+function renderVideo(lesson) {
+  const isCompleted = lesson.progress?.is_completed ?? false;
+  let videoHtml = '';
+  if (lesson.video_url) {
+    const ytMatch = lesson.video_url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/);
+    if (ytMatch) {
+      videoHtml = `<iframe src="https://www.youtube.com/embed/${ytMatch[1]}" 
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+        allowfullscreen></iframe>`;
+    } else {
+      videoHtml = `<video controls src="${lesson.video_url}" style="width:100%;height:100%"></video>`;
+    }
+  } else {
+    videoHtml = `<div class="lesson-video-placeholder">🎬</div>`;
+  }
+
+  document.getElementById('lesson-panel').innerHTML = `
+    <div class="lesson-video-wrap">${videoHtml}</div>
+    ${lessonHeaderHtml(lesson, 'video')}
+    <div class="complete-area" id="complete-area">
+      ${completeOrDoneHtml(lesson.id, isCompleted)}
+    </div>`;
+}
+
+// ── Render: Content ──────────────────────────────────────
+function renderContent(lesson) {
+  const isCompleted = lesson.progress?.is_completed ?? false;
+  const body = lesson.content_body || lesson.content || '';
+  document.getElementById('lesson-panel').innerHTML = `
+    ${lessonHeaderHtml(lesson, 'content')}
+    <div class="content-body">${body || '<p style="color:var(--text-dim)">Bài học này chưa có nội dung.</p>'}</div>
+    <div class="complete-area" id="complete-area">
+      ${completeOrDoneHtml(lesson.id, isCompleted)}
+    </div>`;
+}
+
+// ── Render: Quiz ─────────────────────────────────────────
+function renderQuiz(lesson) {
+  const questions = lesson.questions || [];
+  if (!questions.length) {
+    document.getElementById('lesson-panel').innerHTML = `
+      ${lessonHeaderHtml(lesson, 'quiz')}
+      <p style="color:var(--text-dim)">Quiz này chưa có câu hỏi.</p>`;
+    return;
+  }
+
+  let questionsHtml = questions.map((q, qi) => {
+    const opts = q.options || q.answers || [];
+    return `<div class="quiz-question-card" id="qq-${q.id}">
+      <div class="quiz-question-text">${qi + 1}. ${q.question_text || q.content || q.question}</div>
+      <div class="quiz-options">
+        ${opts.map((opt, oi) => `
+          <label class="quiz-option-label" id="opt-${q.id}-${oi}">
+            <input type="radio" name="q-${q.id}" value="${oi}">
+            <span>${opt.text || opt.content || opt}</span>
+          </label>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('lesson-panel').innerHTML = `
+    ${lessonHeaderHtml(lesson, 'quiz')}
+    <div class="quiz-wrap" id="quiz-wrap">${questionsHtml}</div>
+    <div class="quiz-submit-area" style="margin-top:20px">
+      <button class="btn btn-warning" id="btn-submit-quiz" onclick="submitQuiz(${lesson.id})">
+        📤 Nộp bài
+      </button>
+    </div>
+    <div id="quiz-result" style="display:none;margin-top:20px"></div>`;
+}
+
+async function submitQuiz(lessonId) {
+  if (quizSubmitted) { showToast('Bạn đã nộp bài rồi.', 'info'); return; }
+
+  // Collect answers
+  const answers = [];
+  const wrap = document.getElementById('quiz-wrap');
+  const radios = wrap.querySelectorAll('input[type=radio]');
+  const questionIds = new Set();
+  radios.forEach(r => {
+    const m = r.name.match(/^q-(\d+)$/);
+    if (m) questionIds.add(parseInt(m[1]));
+  });
+
+  for (const qid of questionIds) {
+    const checked = wrap.querySelector(`input[name="q-${qid}"]:checked`);
+    answers.push({ question_id: qid, selected_index: checked ? parseInt(checked.value) : 0 });
+  }
+
+  const btn = document.getElementById('btn-submit-quiz');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-sm"></span> Đang nộp...';
   showSpinner();
-  const { ok, data } = await apiFetch(`/courses/${courseId}/lessons/${lessonId}`);
+
+  const { ok, data } = await apiFetch(`/lessons/${lessonId}/submit-quiz`, {
+    method: 'POST',
+    body: JSON.stringify({ answers }),
+  });
   hideSpinner();
 
-  if (ok && data.data) {
-    const lesson = data.data;
-    document.getElementById('lesson-title').textContent = lesson.title;
-    document.getElementById('lesson-desc').textContent = lesson.description || '';
-
-    const vw = document.getElementById('video-wrap');
-    if (lesson.video_url) {
-      // Support YouTube embed
-      const ytMatch = lesson.video_url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/);
-      if (ytMatch) {
-        vw.innerHTML = `<iframe src="https://www.youtube.com/embed/${ytMatch[1]}" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>`;
-      } else {
-        vw.innerHTML = `<video controls src="${lesson.video_url}" style="width:100%;height:100%"></video>`;
-      }
-    } else {
-      vw.textContent = '🎬';
-    }
-
-    document.getElementById('lesson-content-body').innerHTML =
-      lesson.content ? `<div style="white-space:pre-wrap">${lesson.content}</div>` : '<p style="color:var(--text-muted)">Không có nội dung văn bản cho bài học này.</p>';
-
-    // Show mark-complete button for students
-    if (currentUser?.role === 'student') {
-      const wrap = document.getElementById('lesson-complete-wrap');
-      const badge = document.getElementById('lesson-done-badge');
-      const btn   = document.getElementById('btn-mark-complete');
-      if (wrap) {
-        wrap.style.display = 'block';
-        badge.style.display = 'none';
-        btn.style.display   = 'inline-flex';
-        btn.disabled = false;
-        btn.textContent = '✅ Đánh dấu hoàn thành bài học';
-      }
-    }
-  }
-
-  // If Q&A tab active, reload
-  if (document.getElementById('panel-qna').classList.contains('active')) {
-    backToList();
-    loadQuestions(1);
-  }
-}
-
-// ── Load Q&A list ─────────────────────────────────────────────────────────────
-async function loadQuestions(page = 1, search = '') {
-  if (!currentLessonId) return;
-  qnaPage = page;
-
-  const skeleton = document.getElementById('qna-skeleton');
-  const list = document.getElementById('qna-list');
-  skeleton.style.display = 'flex';
-  skeleton.style.flexDirection = 'column';
-  list.style.display = 'none';
-  document.getElementById('qna-pagination').innerHTML = '';
-
-  let endpoint = `/lessons/${currentLessonId}/questions?page=${page}&limit=10`;
-  if (search) endpoint += `&search=${encodeURIComponent(search)}`;
-
-  const { ok, data } = await apiFetch(endpoint);
-
-  skeleton.style.display = 'none';
-  list.style.display = 'flex';
-
   if (!ok) {
-    list.innerHTML = `<div class="empty-state"><div class="empty-icon">😕</div><p class="empty-text">Không thể tải câu hỏi.</p></div>`;
+    showToast(data.message || 'Nộp bài thất bại', 'error');
+    btn.disabled = false;
+    btn.innerHTML = '📤 Nộp bài';
     return;
   }
 
-  const questions = data.data?.questions ?? data.data ?? [];
-  const totalPages = data.data?.totalPages ?? 1;
-  qnaTotalPages = totalPages;
-  allQuestions = questions;
+  quizSubmitted = true;
+  btn.innerHTML = '✅ Đã nộp';
 
-  const total = data.data?.total ?? questions.length;
-  document.getElementById('qna-count-badge').textContent = total ? `(${total})` : '';
+  const result = data.data;
+  // Backend returns: correct_count, total_questions, quiz_score (0-100), progress_percent
+  const correctCount = result?.correct_count ?? result?.score ?? 0;
+  const totalQ       = result?.total_questions ?? result?.total ?? answers.length;
+  const quizScore    = result?.quiz_score ?? (totalQ > 0 ? Math.round((correctCount / totalQ) * 100) : 0);
 
-  if (!questions.length) {
-    list.innerHTML = `<div class="empty-state"><div class="empty-icon">💬</div><p class="empty-text">${search ? 'Không tìm thấy câu hỏi phù hợp.' : 'Chưa có câu hỏi nào. Hãy là người đầu tiên đặt câu hỏi!'}</p></div>`;
-    return;
-  }
-
-  list.innerHTML = questions.map(q => renderQuestionCard(q)).join('');
-  renderQnaPagination();
-}
-
-function renderQuestionCard(q) {
-  const resolved = q.is_resolved;
-  const noAnswers = (q.answers_count ?? 0) === 0;
-  let cardClass = 'qna-question-card';
-  if (resolved) cardClass += ' resolved';
-  else if (noAnswers) cardClass += ' unanswered';
-
-  return `<div class="${cardClass}" onclick="openQuestion(${q.id})">
-    <div class="qna-question-header">
-      <div class="qna-avatar">${avatarInitial(q.user?.full_name)}</div>
-      <div class="qna-meta">
-        <div class="qna-author">${q.user?.full_name || 'Ẩn danh'}</div>
-        <div class="qna-time">${timeAgo(q.created_at)}</div>
-      </div>
-      <div class="qna-badges">
-        ${resolved ? '<span class="badge badge-resolved">✅ Đã giải quyết</span>' : ''}
-        ${noAnswers && !resolved ? '<span class="badge badge-unanswered">⏳ Chưa có câu trả lời</span>' : ''}
-      </div>
-    </div>
-    <div class="qna-title">${escHtml(q.title)}</div>
-    <div class="qna-excerpt">${escHtml(q.body || q.content || '')}</div>
-    <div class="qna-footer">
-      <span class="qna-answer-count">💬 ${q.answers_count ?? 0} câu trả lời</span>
-      <span>•</span>
-      <span>${timeAgo(q.created_at)}</span>
-    </div>
-  </div>`;
-}
-
-function renderQnaPagination() {
-  const pag = document.getElementById('qna-pagination');
-  if (qnaTotalPages <= 1) { pag.innerHTML = ''; return; }
-  pag.innerHTML = `
-    <button class="btn btn-outline btn-sm" onclick="loadQuestions(${qnaPage-1},'${getSearchVal()}')" ${qnaPage===1?'disabled':''}>← Trước</button>
-    <span class="page-info">Trang ${qnaPage} / ${qnaTotalPages}</span>
-    <button class="btn btn-outline btn-sm" onclick="loadQuestions(${qnaPage+1},'${getSearchVal()}')" ${qnaPage===qnaTotalPages?'disabled':''}>Sau →</button>`;
-}
-
-function getSearchVal() {
-  return document.getElementById('qna-search-input')?.value.trim() || '';
-}
-
-function onQnaSearch() {
-  clearTimeout(qnaSearchTimeout);
-  qnaSearchTimeout = setTimeout(() => loadQuestions(1, getSearchVal()), 400);
-}
-
-// ── New question form ─────────────────────────────────────────────────────────
-function toggleNewForm() {
-  const form = document.getElementById('qna-new-form');
-  form.classList.toggle('open');
-  if (form.classList.contains('open')) {
-    document.getElementById('new-q-title').focus();
-  }
-}
-
-async function submitQuestion() {
-  if (!currentLessonId) return;
-  const title = document.getElementById('new-q-title').value.trim();
-  const body  = document.getElementById('new-q-body').value.trim();
-
-  if (!title) { showToast('Vui lòng nhập tiêu đề câu hỏi', 'error'); return; }
-  if (!body)  { showToast('Vui lòng nhập nội dung câu hỏi', 'error'); return; }
-
-  const btn = document.getElementById('btn-submit-question');
-  btn.disabled = true; btn.innerHTML = '<span class="spinner-sm"></span> Đang gửi...';
-
-  const { ok, data } = await apiFetch(`/lessons/${currentLessonId}/questions`, {
-    method: 'POST',
-    body: JSON.stringify({ title, body }),
-  });
-
-  btn.disabled = false; btn.textContent = '📤 Gửi câu hỏi';
-
-  if (!ok) { showToast(data.message || 'Gửi câu hỏi thất bại', 'error'); return; }
-
-  showToast('Đã gửi câu hỏi thành công! ✅', 'success');
-  document.getElementById('new-q-title').value = '';
-  document.getElementById('new-q-body').value = '';
-  document.getElementById('qna-new-form').classList.remove('open');
-
-  // Prepend new question card
-  const newQ = data.data;
-  const list = document.getElementById('qna-list');
-  list.style.display = 'flex';
-  list.insertAdjacentHTML('afterbegin', renderQuestionCard(newQ));
-  document.getElementById('qna-skeleton').style.display = 'none';
-}
-
-// ── Open question detail ──────────────────────────────────────────────────────
-async function openQuestion(questionId) {
-  currentQuestionId = questionId;
-
-  document.getElementById('qna-list-view').classList.add('hidden');
-  document.getElementById('qna-detail-view').classList.add('active');
-
-  document.getElementById('qna-detail-question-el').innerHTML = '<div class="empty-state" style="padding:24px"><div class="spinner-ring"></div></div>';
-  document.getElementById('qna-answers-section').innerHTML = '';
-
-  const { ok, data } = await apiFetch(`/questions/${questionId}`);
-  if (!ok) {
-    document.getElementById('qna-detail-question-el').innerHTML = `<p style="color:var(--danger)">${data.message || 'Không thể tải câu hỏi.'}</p>`;
-    return;
-  }
-
-  const q = data.data;
-  const answers = q.answers || [];
-  const canDelete = currentUser && (q.user_id === currentUser.id || currentUser.role === 'admin');
-  const canResolve = currentUser && (q.user_id === currentUser.id || currentUser.role === 'instructor' || currentUser.role === 'admin');
-
-  // Render question
-  document.getElementById('qna-detail-question-el').innerHTML = `
-    <div class="qna-question-header" style="margin-bottom:14px">
-      <div class="qna-avatar">${avatarInitial(q.user?.full_name)}</div>
-      <div class="qna-meta">
-        <div class="qna-author">${q.user?.full_name || 'Ẩn danh'}</div>
-        <div class="qna-time">${timeAgo(q.created_at)}</div>
-      </div>
-      <div class="qna-badges">
-        ${q.is_resolved ? '<span class="badge badge-resolved">✅ Đã giải quyết</span>' : ''}
-      </div>
-    </div>
-    <div class="qna-detail-title">${escHtml(q.title)}</div>
-    <div class="qna-detail-body">${escHtml(q.body || q.content || '')}</div>
-    <div class="qna-detail-actions">
-      ${!q.is_resolved && canResolve ? `<button class="btn btn-sm btn-resolve" onclick="resolveQuestion(${q.id})">✅ Đánh dấu đã giải quyết</button>` : ''}
-      ${canDelete ? `<button class="btn btn-sm btn-icon-danger" title="Xóa câu hỏi" onclick="deleteQuestion(${q.id})">🗑 Xóa câu hỏi</button>` : ''}
+  // Show result
+  document.getElementById('quiz-result').style.display = 'block';
+  document.getElementById('quiz-result').innerHTML = `
+    <div class="quiz-result-box">
+      <div class="quiz-score">${quizScore}%</div>
+      <div class="quiz-score-label">Bạn trả lời đúng <strong>${correctCount}/${totalQ}</strong> câu</div>
+      <p style="margin-top:12px;font-size:.85rem;color:var(--text-dim)">
+        ${quizScore >= 80 ? '🎉 Xuất sắc! Bạn đã nắm vững bài học.' : quizScore >= 50 ? '👍 Khá tốt! Đã vượt qua bài quiz!' : '📚 Chưa đạt (50%). Hãy ôn lại và thử lại.'}
+      </p>
+      ${quizScore >= 50 ? '<p style="font-size:.82rem;color:var(--success)">✅ Bài học đã được đánh dấu hoàn thành!</p>' : '<button class="btn btn-warning btn-sm" style="margin-top:8px" onclick="location.reload()">🔄 Làm lại</button>'}
     </div>`;
 
-  // Render answers
-  let answersHtml = `<div class="qna-answers-title">💬 ${answers.length} câu trả lời</div>`;
-  if (!answers.length) {
-    answersHtml += `<div class="empty-state" style="padding:24px 0"><div class="empty-icon" style="font-size:2.5rem">🤔</div><p class="empty-text">Chưa có câu trả lời nào.</p></div>`;
-  } else {
-    answersHtml += answers.map(a => renderAnswerCard(a)).join('');
+  // Update progress from result directly (avoid extra API call)
+  if (isEnrolled && result?.progress_percent !== undefined) {
+    updateProgressUI(result.progress_percent);
+    if (quizScore >= 50) markSidebarDone(lessonId);
+  } else if (isEnrolled) {
+    await refreshProgress();
+    if (quizScore >= 50) markSidebarDone(lessonId);
   }
-  document.getElementById('qna-answers-section').innerHTML = answersHtml;
-
-  // Show reply form only for logged-in users
-  document.getElementById('qna-reply-form').style.display = isLoggedIn() ? 'block' : 'none';
 }
 
-function renderAnswerCard(a) {
-  const isInstructor = a.is_instructor_answer;
-  const canDelete = currentUser && (a.user_id === currentUser.id || currentUser.role === 'admin');
-  return `<div class="qna-answer-card${isInstructor ? ' instructor-answer' : ''}">
-    <div class="qna-answer-header">
-      <div class="qna-avatar qna-avatar-sm">${avatarInitial(a.user?.full_name)}</div>
-      <div class="qna-meta">
-        <div class="qna-author">${a.user?.full_name || 'Ẩn danh'}
-          ${isInstructor ? '<span class="badge badge-instructor" style="margin-left:6px">⭐ Giảng viên</span>' : ''}
-        </div>
-        <div class="qna-time">${timeAgo(a.created_at)}</div>
-      </div>
-      ${canDelete ? `<button class="btn-icon-danger" title="Xóa câu trả lời" onclick="deleteAnswer(${a.id})">🗑</button>` : ''}
-    </div>
-    <div class="qna-answer-body">${escHtml(a.body || a.content || '')}</div>
-  </div>`;
+// ── Helpers ───────────────────────────────────────────────
+function lessonHeaderHtml(lesson, type) {
+  const typeLabel = type === 'video' ? '▶ Video' : type === 'quiz' ? '📝 Quiz' : '📄 Nội dung';
+  const typeCls   = `type-${type}`;
+  return `
+    <div class="lesson-header">
+      <span class="lesson-type-badge ${typeCls}">${typeLabel}</span>
+      <h2>${lesson.title}</h2>
+      ${lesson.description ? `<p>${lesson.description}</p>` : ''}
+    </div>`;
 }
 
-function backToList() {
-  currentQuestionId = null;
-  document.getElementById('qna-list-view').classList.remove('hidden');
-  document.getElementById('qna-detail-view').classList.remove('active');
-  document.getElementById('reply-textarea').value = '';
-}
-
-// ── Submit reply ──────────────────────────────────────────────────────────────
-async function submitReply() {
-  if (!currentQuestionId) return;
-  const body = document.getElementById('reply-textarea').value.trim();
-  if (!body) { showToast('Vui lòng nhập nội dung câu trả lời', 'error'); return; }
-
-  const btn = document.getElementById('btn-submit-reply');
-  btn.disabled = true; btn.innerHTML = '<span class="spinner-sm"></span> Đang gửi...';
-
-  const { ok, data } = await apiFetch(`/questions/${currentQuestionId}/answers`, {
-    method: 'POST',
-    body: JSON.stringify({ body }),
-  });
-
-  btn.disabled = false; btn.textContent = '📤 Gửi câu trả lời';
-
-  if (!ok) { showToast(data.message || 'Gửi thất bại', 'error'); return; }
-
-  showToast('Đã gửi câu trả lời! ✅', 'success');
-  document.getElementById('reply-textarea').value = '';
-
-  const newAnswer = data.data;
-  const section = document.getElementById('qna-answers-section');
-  // Remove empty state if present
-  const emptyEl = section.querySelector('.empty-state');
-  if (emptyEl) emptyEl.remove();
-
-  // Update answers count badge
-  const countEl = section.querySelector('.qna-answers-title');
-  if (countEl) {
-    const cur = parseInt(countEl.textContent) || 0;
-    countEl.textContent = `💬 ${cur + 1} câu trả lời`;
+function completeOrDoneHtml(lessonId, isCompleted) {
+  if (currentUser?.role !== 'student' || !isEnrolled) return '';
+  if (isCompleted) {
+    return `<span class="completed-badge">✔ Đã hoàn thành bài học</span>`;
   }
-
-  section.insertAdjacentHTML('beforeend', renderAnswerCard(newAnswer));
-  section.lastElementChild.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  return `<button class="btn btn-success" id="btn-complete-${lessonId}" onclick="markComplete(${lessonId})">
+    ✅ Đánh dấu hoàn thành
+  </button>`;
 }
 
-// ── Resolve question ──────────────────────────────────────────────────────────
-async function resolveQuestion(qId) {
-  const { ok, data } = await apiFetch(`/questions/${qId}/resolve`, { method: 'PUT' });
-  if (!ok) { showToast(data.message || 'Lỗi đánh dấu', 'error'); return; }
-  showToast('Đã đánh dấu câu hỏi là đã giải quyết ✅', 'success');
-  openQuestion(qId); // refresh
-}
+async function markComplete(lessonId) {
+  const btn = document.getElementById(`btn-complete-${lessonId}`);
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-sm"></span>'; }
+  showSpinner();
 
-// ── Delete question ───────────────────────────────────────────────────────────
-async function deleteQuestion(qId) {
-  if (!confirm('Bạn có chắc muốn xóa câu hỏi này?')) return;
-  const { ok, data } = await apiFetch(`/questions/${qId}`, { method: 'DELETE' });
-  if (!ok) { showToast(data.message || 'Xóa thất bại', 'error'); return; }
-  showToast('Đã xóa câu hỏi', 'success');
-  backToList();
-  loadQuestions(qnaPage, getSearchVal());
-}
-
-// ── Delete answer ─────────────────────────────────────────────────────────────
-async function deleteAnswer(aId) {
-  if (!confirm('Bạn có chắc muốn xóa câu trả lời này?')) return;
-  const { ok, data } = await apiFetch(`/answers/${aId}`, { method: 'DELETE' });
-  if (!ok) { showToast(data.message || 'Xóa thất bại', 'error'); return; }
-  showToast('Đã xóa câu trả lời', 'success');
-  openQuestion(currentQuestionId); // refresh
-}
-
-// ── Escape HTML ───────────────────────────────────────────────────────────────
-function escHtml(str) {
-  return String(str || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
-
-// ── Mark this lesson complete ──────────────────────────────────────────
-async function markThisLessonComplete() {
-  if (!currentLessonId || currentUser?.role !== 'student') return;
-  const btn   = document.getElementById('btn-mark-complete');
-  const badge = document.getElementById('lesson-done-badge');
-  btn.disabled = true; btn.innerHTML = '<span class="spinner-sm"></span>';
-
-  const { ok, data } = await apiFetch(
-    `/courses/${courseId}/lessons/${currentLessonId}/complete`,
-    { method: 'PUT' }
-  );
+  const { ok, data } = await apiFetch(`/lessons/${lessonId}/complete`, { method: 'POST' });
+  hideSpinner();
 
   if (!ok) {
     showToast(data.message || 'Không thể đánh dấu hoàn thành', 'error');
-    btn.disabled = false; btn.textContent = '✅ Đánh dấu hoàn thành bài học';
+    if (btn) { btn.disabled = false; btn.innerHTML = '✅ Đánh dấu hoàn thành'; }
     return;
   }
 
-  // Update UI: hide button, show badge
-  btn.style.display   = 'none';
-  badge.style.display = 'inline';
+  // Update UI
+  const area = document.getElementById('complete-area');
+  if (area) area.innerHTML = `<span class="completed-badge">✔ Đã hoàn thành bài học</span>`;
 
-  // Update curriculum sidebar checkmark
-  const li = document.getElementById(`li-${currentLessonId}`);
-  if (li && !li.querySelector('.done-check')) {
-    li.insertAdjacentHTML('beforeend', '<span class="done-check" style="margin-left:auto;color:var(--success);font-size:.8rem">✔</span>');
-  }
+  markSidebarDone(lessonId);
 
   const pct = data.data?.progress_percent ?? 0;
-  showToast(`Đã hoàn thành bài học! Tiến độ: ${pct}%`, 'success');
-
-  // Show cert banner if 100%
-  const banner = document.getElementById('cert-banner');
-  if (banner) banner.style.display = pct >= 100 ? 'flex' : 'none';
+  updateProgressUI(pct);
+  showToast(`✅ Đã hoàn thành! Tiến độ: ${Math.round(pct)}%`, 'success');
 }
 
-// ── Check & show certificate banner ──────────────────────────────────────────
-async function checkCertProgress() {
-  if (currentUser?.role !== 'student') return;
-  const { ok, data } = await apiFetch(`/courses/${courseId}/progress`);
-  if (!ok || !data.data) return;
-  const pct = Math.round(data.data.progress_percent ?? 0);
-  const banner = document.getElementById('cert-banner');
-  if (banner) banner.style.display = pct >= 100 ? 'flex' : 'none';
+function markSidebarDone(lessonId) {
+  const row = document.getElementById(`lr-${lessonId}`);
+  if (row && !row.querySelector('.done-check')) {
+    const check = document.createElement('span');
+    check.className = 'done-check';
+    check.textContent = '✓';
+    row.appendChild(check);
+    row.classList.add('completed');
+  }
 }
 
-// ── Download course certificate PDF ──────────────────────────────────────────
+// ── Certificate download ──────────────────────────────────
 async function downloadCourseCert() {
   const btn = document.getElementById('btn-dl-cert');
-  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-sm"></span> Đang tạo PDF...'; }
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-sm"></span> Đang tạo...'; }
   try {
-    const token = getToken();
     const res = await fetch(`http://localhost:3000/api/courses/${courseId}/certificate`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      headers: getToken() ? { Authorization: `Bearer ${getToken()}` } : {},
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
@@ -668,22 +676,19 @@ async function downloadCourseCert() {
     const blob = await res.blob();
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    a.href     = url;
-    a.download = `certificate-course-${courseId}.pdf`;
-    document.body.appendChild(a);
-    a.click();
+    a.href = url; a.download = `certificate-course-${courseId}.pdf`;
+    document.body.appendChild(a); a.click();
     setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 1000);
-    showToast('Đã tải chứng chỉ PDF thành công! 🎓', 'success');
+    showToast('Đã tải chứng chỉ PDF! 🎓', 'success');
   } catch (_) {
     showToast('Lỗi khi tải chứng chỉ', 'error');
   } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '📥 Tải chứng chỉ hoàn thành'; }
+    if (btn) { btn.disabled = false; btn.textContent = '📥 Tải chứng chỉ'; }
   }
 }
 
-// ── Init ──────────────────────────────────────────────────────────────────────
-loadCurriculum();
-if (currentUser?.role === 'student') checkCertProgress();
+// ── Init ──────────────────────────────────────────────────
+loadCourse();
 </script>
 </body>
 </html>
